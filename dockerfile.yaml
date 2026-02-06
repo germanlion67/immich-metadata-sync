@@ -1,0 +1,80 @@
+FROM python:3.11-slim
+
+# System-Tools und Abhängigkeiten installieren
+RUN apt-get update && apt-get install -y exiftool curl tzdata && \
+    pip install --no-cache-dir requests && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Das Skript sicher in die Datei schreiben
+RUN cat << 'EOF' > script.py
+import requests, os, subprocess, sys, datetime
+
+IMMICH_URL = os.getenv("IMMICH_INSTANCE_URL", "").rstrip("/")
+API_KEY = os.getenv("IMMICH_API_KEY")
+PHOTO_DIR = "/library"
+LOG_FILE = os.path.join(PHOTO_DIR, "sync_log.txt")
+
+headers = {"x-api-key": API_KEY, "Accept": "application/json"}
+
+def log(message):
+    ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    msg = f"[{ts}] {message}"
+    print(msg)
+    try:
+        with open(LOG_FILE, "a") as f: f.write(msg + "\n")
+    except: pass
+
+def get_assets():
+    r = requests.get(f"{IMMICH_URL}/asset", headers=headers)
+    if r.status_code != 200:
+        raise Exception(f"API Fehler {r.status_code}: {r.text[:200]}")
+    try:
+        return r.json()
+    except:
+        raise Exception(f"Kein JSON erhalten. Server antwortet: {r.text[:200]}")
+
+def has_metadata(path):
+    res = subprocess.run(["exiftool", "-s3", "-Subject", path], capture_output=True, text=True)
+    return len(res.stdout.strip()) > 0
+
+if __name__ == "__main__":
+    ONLY_NEW = "--only-new" in sys.argv
+    stats = {"total": 0, "updated": 0, "skipped_meta": 0, "no_people": 0}
+    
+    log("=== Start Metadaten-Sync ===")
+    try:
+        assets = get_assets()
+        stats["total"] = len(assets)
+        
+        for a in assets:
+            rel_path = a.get("originalPath", "")
+            clean_rel = rel_path.replace("library/", "", 1) if rel_path.startswith("library/") else rel_path
+            full_path = os.path.join(PHOTO_DIR, clean_rel)
+            
+            if not os.path.exists(full_path):
+                continue
+
+            if ONLY_NEW and has_metadata(full_path):
+                stats["skipped_meta"] += 1
+                continue
+
+            # API Call für Personen-Details
+            r_det = requests.get(f"{IMMICH_URL}/asset/assetById/{a['id']}", headers=headers)
+            if r_det.status_code == 200:
+                people = [p["name"] for p in r_det.json().get("people", []) if p.get("name")]
+                if people:
+                    tags = ",".join(people)
+                    log(f"Update: {clean_rel} -> {tags}")
+                    subprocess.run(["exiftool", "-overwrite_original", f"-Subject={tags}", f"-Keywords={tags}", full_path])
+                    stats["updated"] += 1
+                else:
+                    stats["no_people"] += 1
+
+        log(f"Zusammenfassung: Total: {stats['total']} | Neu: {stats['updated']} | Übersprungen: {stats['skipped_meta']}")
+    except Exception as e:
+        log(f"FEHLER: {e}")
+EOF
+
+CMD ["sleep", "infinity"]
