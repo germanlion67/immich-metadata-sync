@@ -1,6 +1,6 @@
 # 📸 IMMICH ULTRA-SYNC
 
-English-first repository layout for syncing Immich metadata back into your original media files.
+Syncing Immich metadata back into your original media files.
 
 ## What this script does
 `immich-ultra-sync.py` connects to your Immich instance with an API key, fetches asset metadata, maps Immich paths to the mounted library, and writes values into EXIF/XMP:
