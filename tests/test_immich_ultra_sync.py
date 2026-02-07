@@ -140,6 +140,25 @@ class ChangeDetectionTests(ModuleLoaderMixin):
             self.module.normalize_exif_value("2024-01-15 10:30:45", "CreateDate"),
             "2024:01:15 10:30:45"
         )
+        # Test XMP:CreateDate normalization (same format as DateTimeOriginal/CreateDate)
+        self.assertEqual(
+            self.module.normalize_exif_value("2024:01:15 10:30:45", "XMP:CreateDate"),
+            "2024:01:15 10:30:45"
+        )
+        self.assertEqual(
+            self.module.normalize_exif_value("2024-01-15T10:30:45Z", "XMP:CreateDate"),
+            "2024:01:15 10:30:45"
+        )
+        # Test Photoshop:DateCreated normalization (ISO date format YYYY-MM-DD)
+        self.assertEqual(
+            self.module.normalize_exif_value("2024-01-15", "Photoshop:DateCreated"),
+            "2024-01-15"
+        )
+        self.assertEqual(
+            self.module.normalize_exif_value("2024:01:15", "Photoshop:DateCreated"),
+            "2024-01-15"
+        )
+
 
 
 class ArgparseTests(ModuleLoaderMixin):
