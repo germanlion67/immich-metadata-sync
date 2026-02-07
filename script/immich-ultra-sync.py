@@ -597,23 +597,9 @@ def normalize_exif_value(value: str, tag: str) -> str:
         if match:
             return match.group(0)
     
-    # Microsoft Rating: normalize 99 -> 5, 0 -> 0
-    if tag == "MicrosoftPhoto:Rating":
-        # Microsoft uses 0-99 scale, convert to 0-5
-        try:
-            ms_val = int(float(value))
-            if ms_val >= 99:
-                return "5"
-            elif ms_val == 0:
-                return "0"
-            # For intermediate values, map proportionally: 1-98 maps to 1-4 stars
-            # Use ceiling to ensure non-zero values map to at least 1 star
-            return str(min(5, max(1, round(ms_val / 20))))
-        except ValueError:
-            return "0"
-    
+        
     # DateTime fields: normalize separators
-    if tag in ["DateTimeOriginal", "CreateDate", "XMP:CreateDate"]:
+    if tag in ["DateTimeOriginal", "CreateDate"]:
         # Convert "YYYY:MM:DD HH:MM:SS" format variations
         normalized = value.replace("-", ":").replace("T", " ")
         # Take first 19 characters (YYYY:MM:DD HH:MM:SS)
@@ -713,7 +699,7 @@ def build_exif_args(
                     f"-DateTimeOriginal={clean_date}", 
                     f"-CreateDate={clean_date}",
                     f"-XMP:CreateDate={clean_date}",  # ← NEW: XMP standard
-                    f"-Photoshop:DateCreated={iso_date}"  # ← NEW: Photoshop compatibility (ISO date only)
+                    f"-XMP-photoshop:DateCreated={iso_date}"  # ← NEW: Photoshop compatibility (ISO date only)
                 ])
                 changes.append("Time")
             else:
@@ -724,7 +710,7 @@ def build_exif_args(
                     f"-DateTimeOriginal={clean_date}", 
                     f"-CreateDate={clean_date}",
                     f"-XMP:CreateDate={clean_date}",
-                    f"-Photoshop:DateCreated={iso_date}"
+                    f"-XMP-photoshop:DateCreated={iso_date}"
                 ])
                 changes.append("Time")
 
