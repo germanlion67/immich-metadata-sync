@@ -567,6 +567,7 @@ def normalize_exif_value(value: str, tag: str) -> str:
         return ""
     
     value = str(value).strip()
+    tag_short = tag.split(":")[-1]  # ← NEU: Extrahiere kurzen Namen für Vergleiche
     
     # GPS coordinates: normalize format and round to configured precision
     if tag in ["GPSLatitude", "GPSLongitude"]:
@@ -607,7 +608,7 @@ def normalize_exif_value(value: str, tag: str) -> str:
             return normalized[:19]
     
     # Photoshop:DateCreated: ISO date format (YYYY-MM-DD only, no time)
-    if tag == "DateCreated":  # ← FIX: ohne Namespace
+    if tag_short == "DateCreated":  # ← FIX: ohne Namespace
         # Normalize to YYYY-MM-DD format
         normalized = value.replace(":", "-")
         # Take first 10 characters (YYYY-MM-DD)
