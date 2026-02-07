@@ -4,7 +4,7 @@ import unittest
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-MODULE_FILE_PATH = PROJECT_ROOT / "immich-metadata-sync" / "script" / "immich-ultra-sync.py"
+MODULE_FILE_PATH = PROJECT_ROOT / "script" / "immich-ultra-sync.py"
 _MODULE_CACHE = None
 
 

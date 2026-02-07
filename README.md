@@ -5,11 +5,11 @@ Syncing Immich metadata back into your original media files.
 ## What this script does
 `immich-ultra-sync.py` connects to your Immich instance with an API key, fetches asset metadata, maps Immich paths to the mounted library, and writes values into EXIF/XMP:
 
-- People → `XMP:Subject`, `IPTC:Keywords`
+- People → `XMP:Subject`, `IPTC:Keywords`, `Iptc4xmpExt:PersonInImage`
 - GPS → `GPSLatitude`, `GPSLongitude`, `GPSAltitude`
 - Captions → `XMP:Description`, `IPTC:Caption-Abstract`
-- Time → `DateTimeOriginal`, `CreateDate`
-- Favorites → `Rating` (5 for favorites, 0 otherwise)
+- Time → `DateTimeOriginal`, `CreateDate`, `XMP:CreateDate`, `Photoshop:DateCreated`
+- Favorites → `Rating`, `MicrosoftPhoto:Rating` (5/99 for favorites, 0 otherwise)
 
 The `--only-new` mode compares desired EXIF values with what is already on disk and skips files with no changes to reduce disk I/O.
 

@@ -499,15 +499,15 @@ def get_current_exif_values(full_path: str, active_modes: List[str]) -> Dict[str
     tags_to_read = []
     
     if "people" in active_modes:
-        tags_to_read.extend(["Subject", "Keywords"])  # Ohne XMP:/IPTC: Präfix
+        tags_to_read.extend(["Subject", "Keywords", "Iptc4xmpExt:PersonInImage"])  # ← Added Iptc4xmpExt:PersonInImage with namespace
     if "gps" in active_modes:
         tags_to_read.extend(["GPSLatitude", "GPSLongitude", "GPSAltitude"])
     if "caption" in active_modes:
-        tags_to_read.extend(["Description", "Caption-Abstract"])  # Ohne XMP:/IPTC: Präfix
+        tags_to_read.extend(["Description", "Caption-Abstract"])
     if "time" in active_modes:
-        tags_to_read.extend(["DateTimeOriginal", "CreateDate"])
+        tags_to_read.extend(["DateTimeOriginal", "CreateDate"])  # XMP:CreateDate and Photoshop:DateCreated check not needed
     if "rating" in active_modes:
-        tags_to_read.append("Rating")
+        tags_to_read.extend(["Rating", "MicrosoftPhoto:Rating"])  # ← Added MicrosoftPhoto:Rating
     
     if not tags_to_read:
         return {}
@@ -598,6 +598,21 @@ def normalize_exif_value(value: str, tag: str) -> str:
         if match:
             return match.group(0)
     
+    # Microsoft Rating: normalize 99 -> 5, 0 -> 0
+    if tag == "MicrosoftPhoto:Rating":
+        # Microsoft uses 0-99 scale, convert to 0-5
+        try:
+            ms_val = int(float(value))
+            if ms_val >= 99:
+                return "5"
+            elif ms_val == 0:
+                return "0"
+            # For intermediate values, map proportionally: 1-98 maps to 1-4 stars
+            # Use ceiling to ensure non-zero values map to at least 1 star
+            return str(min(5, max(1, round(ms_val / 20))))
+        except ValueError:
+            return "0"
+    
     # DateTime fields: normalize separators
     if tag in ["DateTimeOriginal", "CreateDate"]:
         # Convert "YYYY:MM:DD HH:MM:SS" format variations
@@ -629,7 +644,11 @@ def build_exif_args(
         people = [p["name"] for p in details.get("people", []) if p.get("name")]
         if people:
             val = ",".join(people)
-            args.extend([f"-XMP:Subject={val}", f"-IPTC:Keywords={val}"])
+            args.extend([
+                f"-XMP:Subject={val}", 
+                f"-IPTC:Keywords={val}",
+                f"-Iptc4xmpExt:PersonInImage={val}"  # ← NEW: IPTC Extension standard
+            ])
             changes.append("People")
 
     # 2. LOCATION SYNC (GPS & altitude)
@@ -682,18 +701,34 @@ def build_exif_args(
             if parsed_date:
                 # Format to EXIF: YYYY:MM:DD HH:MM:SS
                 clean_date = parsed_date.strftime("%Y:%m:%d %H:%M:%S")
-                args.extend([f"-DateTimeOriginal={clean_date}", f"-CreateDate={clean_date}"])
+                iso_date = parsed_date.strftime("%Y-%m-%d")
+                args.extend([
+                    f"-DateTimeOriginal={clean_date}", 
+                    f"-CreateDate={clean_date}",
+                    f"-XMP:CreateDate={clean_date}",  # ← NEW: XMP standard
+                    f"-Photoshop:DateCreated={iso_date}"  # ← NEW: Photoshop compatibility (ISO date only)
+                ])
                 changes.append("Time")
             else:
                 # Final fallback when parsing fails
                 clean_date = str(date_raw).replace("-", ":").replace("T", " ")[:19]
-                args.extend([f"-DateTimeOriginal={clean_date}", f"-CreateDate={clean_date}"])
+                iso_date = str(date_raw)[:10]  # Extract YYYY-MM-DD
+                args.extend([
+                    f"-DateTimeOriginal={clean_date}", 
+                    f"-CreateDate={clean_date}",
+                    f"-XMP:CreateDate={clean_date}",
+                    f"-Photoshop:DateCreated={iso_date}"
+                ])
                 changes.append("Time")
 
     # 5. FAVORITE SYNC (Immich heart -> 5 stars, else 0)
     if "rating" in active_modes:
         rating = "5" if asset.get("isFavorite") else "0"
-        args.append(f"-Rating={rating}")
+        ms_rating = "99" if rating == "5" else "0"  # Microsoft rating scale: 99=5 stars, 0=unrated
+        args.extend([
+            f"-Rating={rating}",
+            f"-MicrosoftPhoto:Rating={ms_rating}"  # ← NEW: Windows Photos compatibility
+        ])
         changes.append("Rating")
 
     return args, changes
