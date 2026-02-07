@@ -621,7 +621,7 @@ def normalize_exif_value(value: str, tag: str) -> str:
             return normalized[:19]
     
     # Photoshop:DateCreated: ISO date format (YYYY-MM-DD only, no time)
-    if tag == "Photoshop:DateCreated":
+    if tag == "XMP-photoshop:DateCreated":  # ← FIX: war Photoshop:DateCreated
         # Normalize to YYYY-MM-DD format
         normalized = value.replace(":", "-")
         # Take first 10 characters (YYYY-MM-DD)
