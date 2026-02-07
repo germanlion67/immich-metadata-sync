@@ -5,6 +5,27 @@ All notable changes to IMMICH ULTRA-SYNC will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-02-07
+
+### Added
+- **Extended XMP metadata fields for better interoperability:**
+  - `Iptc4xmpExt:PersonInImage` for IPTC Extension standard compliance (people tagging)
+  - `XMP:CreateDate` for XMP standard date field
+  - `Photoshop:DateCreated` for Adobe Photoshop compatibility
+  - `MicrosoftPhoto:Rating` for Windows Photos compatibility (maps 5-star to 99)
+- **Improved change detection** to include new metadata fields
+
+### Changed
+- Extended people sync to write IPTC Extension PersonInImage field
+- Extended time sync to write XMP and Photoshop date fields
+- Extended rating sync to write Microsoft Photo rating field for Windows compatibility
+- Updated documentation to reflect new metadata fields
+
+### Technical Details
+- No API changes required - all changes are in ExifTool argument generation
+- Backward compatible - existing functionality unchanged
+- Change detection automatically handles new fields with `--only-new` flag
+
 ## [1.0.0] - 2026-02-05
 
 ### Added
