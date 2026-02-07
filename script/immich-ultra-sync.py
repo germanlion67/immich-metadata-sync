@@ -499,15 +499,15 @@ def get_current_exif_values(full_path: str, active_modes: List[str]) -> Dict[str
     tags_to_read = []
     
     if "people" in active_modes:
-        tags_to_read.extend(["Subject", "Keywords", "XMP-iptcExt:PersonInImage"])  # ← Added Iptc4xmpExt:PersonInImage with namespace
+        tags_to_read.extend(["Subject", "Keywords", "PersonInImage"])  # ← FIX: Kein Namespace
     if "gps" in active_modes:
         tags_to_read.extend(["GPSLatitude", "GPSLongitude", "GPSAltitude"])
     if "caption" in active_modes:
         tags_to_read.extend(["Description", "Caption-Abstract"])
     if "time" in active_modes:
-        tags_to_read.extend(["DateTimeOriginal", "CreateDate", "XMP:CreateDate", "Photoshop:DateCreated"])
+        tags_to_read.extend(["DateTimeOriginal", "CreateDate", "DateCreated"])  # ← FIX: DateCreated statt XMP-photoshop
     if "rating" in active_modes:
-        tags_to_read.extend(["Rating"])
+        tags_to_read.extend(["Rating"])  # ← FIX: Removed MicrosoftPhoto
     
     if not tags_to_read:
         return {}
@@ -621,7 +621,7 @@ def normalize_exif_value(value: str, tag: str) -> str:
             return normalized[:19]
     
     # Photoshop:DateCreated: ISO date format (YYYY-MM-DD only, no time)
-    if tag == "XMP-photoshop:DateCreated":  # ← FIX: war Photoshop:DateCreated
+    if tag == "DateCreated":  # ← FIX: ohne Namespace
         # Normalize to YYYY-MM-DD format
         normalized = value.replace(":", "-")
         # Take first 10 characters (YYYY-MM-DD)
