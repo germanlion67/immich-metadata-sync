@@ -556,9 +556,8 @@ def extract_desired_values(exif_args: List[str]) -> Dict[str, str]:
         if arg.startswith("-") and "=" in arg:
             tag_value = arg[1:]  # Remove leading dash
             tag, value = tag_value.split("=", 1)
-            # Remove group prefix for comparison (XMP:Subject -> Subject)
-            tag_clean = tag.split(":")[-1]
-            desired[tag_clean] = value
+            # Keep full tag name with namespace for proper comparison
+            desired[tag] = value
     return desired
 
 
@@ -839,7 +838,9 @@ def process_asset(
     # Determine which fields actually need updating
     fields_to_update = []
     for tag, desired in desired_values.items():
-        current = current_values.get(tag, "")
+        # For comparison, try both full tag name and short name (without namespace)
+        tag_short = tag.split(":")[-1]
+        current = current_values.get(tag, current_values.get(tag_short, ""))
         normalized_current = normalize_exif_value(current, tag)
         normalized_desired = normalize_exif_value(desired, tag)
         
