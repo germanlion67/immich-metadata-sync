@@ -499,7 +499,7 @@ def get_current_exif_values(full_path: str, active_modes: List[str]) -> Dict[str
     tags_to_read = []
     
     if "people" in active_modes:
-        tags_to_read.extend(["Subject", "Keywords", "Iptc4xmpExt:PersonInImage"])  # ← Added Iptc4xmpExt:PersonInImage with namespace
+        tags_to_read.extend(["Subject", "Keywords", "XMP-iptcExt:PersonInImage"])  # ← Added Iptc4xmpExt:PersonInImage with namespace
     if "gps" in active_modes:
         tags_to_read.extend(["GPSLatitude", "GPSLongitude", "GPSAltitude"])
     if "caption" in active_modes:
@@ -507,7 +507,7 @@ def get_current_exif_values(full_path: str, active_modes: List[str]) -> Dict[str
     if "time" in active_modes:
         tags_to_read.extend(["DateTimeOriginal", "CreateDate", "XMP:CreateDate", "Photoshop:DateCreated"])
     if "rating" in active_modes:
-        tags_to_read.extend(["Rating", "MicrosoftPhoto:Rating"])  # ← Added MicrosoftPhoto:Rating
+        tags_to_read.extend(["Rating"])
     
     if not tags_to_read:
         return {}
@@ -654,7 +654,7 @@ def build_exif_args(
             args.extend([
                 f"-XMP:Subject={val}", 
                 f"-IPTC:Keywords={val}",
-                f"-Iptc4xmpExt:PersonInImage={val}"  # ← NEW: IPTC Extension standard
+                f"-XMP-iptcExt:PersonInImage={val}"  # ← NEW: IPTC Extension standard
             ])
             changes.append("People")
 
@@ -731,11 +731,7 @@ def build_exif_args(
     # 5. FAVORITE SYNC (Immich heart -> 5 stars, else 0)
     if "rating" in active_modes:
         rating = "5" if asset.get("isFavorite") else "0"
-        ms_rating = "99" if rating == "5" else "0"  # Microsoft rating scale: 99=5 stars, 0=unrated
-        args.extend([
-            f"-Rating={rating}",
-            f"-MicrosoftPhoto:Rating={ms_rating}"  # ← NEW: Windows Photos compatibility
-        ])
+        args.append(f"-Rating={rating}")
         changes.append("Rating")
 
     return args, changes
