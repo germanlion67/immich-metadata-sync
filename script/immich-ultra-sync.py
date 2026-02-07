@@ -505,7 +505,7 @@ def get_current_exif_values(full_path: str, active_modes: List[str]) -> Dict[str
     if "caption" in active_modes:
         tags_to_read.extend(["Description", "Caption-Abstract"])
     if "time" in active_modes:
-        tags_to_read.extend(["DateTimeOriginal", "CreateDate"])  # XMP:CreateDate and Photoshop:DateCreated check not needed
+        tags_to_read.extend(["DateTimeOriginal", "CreateDate", "XMP:CreateDate", "Photoshop:DateCreated"])
     if "rating" in active_modes:
         tags_to_read.extend(["Rating", "MicrosoftPhoto:Rating"])  # ← Added MicrosoftPhoto:Rating
     
@@ -614,12 +614,20 @@ def normalize_exif_value(value: str, tag: str) -> str:
             return "0"
     
     # DateTime fields: normalize separators
-    if tag in ["DateTimeOriginal", "CreateDate"]:
+    if tag in ["DateTimeOriginal", "CreateDate", "XMP:CreateDate"]:
         # Convert "YYYY:MM:DD HH:MM:SS" format variations
         normalized = value.replace("-", ":").replace("T", " ")
         # Take first 19 characters (YYYY:MM:DD HH:MM:SS)
         if len(normalized) >= 19:
             return normalized[:19]
+    
+    # Photoshop:DateCreated: ISO date format (YYYY-MM-DD only, no time)
+    if tag == "Photoshop:DateCreated":
+        # Normalize to YYYY-MM-DD format
+        normalized = value.replace(":", "-")
+        # Take first 10 characters (YYYY-MM-DD)
+        if len(normalized) >= 10:
+            return normalized[:10]
     
     return value
 
