@@ -499,7 +499,7 @@ def get_current_exif_values(full_path: str, active_modes: List[str]) -> Dict[str
     tags_to_read = []
     
     if "people" in active_modes:
-        tags_to_read.extend(["Subject", "Keywords", "PersonInImage"])  # ← Added PersonInImage
+        tags_to_read.extend(["Subject", "Keywords", "Iptc4xmpExt:PersonInImage"])  # ← Added Iptc4xmpExt:PersonInImage with namespace
     if "gps" in active_modes:
         tags_to_read.extend(["GPSLatitude", "GPSLongitude", "GPSAltitude"])
     if "caption" in active_modes:
@@ -607,8 +607,9 @@ def normalize_exif_value(value: str, tag: str) -> str:
                 return "5"
             elif ms_val == 0:
                 return "0"
-            # For intermediate values, map proportionally
-            return str(round(ms_val / 20))
+            # For intermediate values, map proportionally: 1-98 maps to 1-4 stars
+            # Use ceiling to ensure non-zero values map to at least 1 star
+            return str(min(5, max(1, round(ms_val / 20))))
         except ValueError:
             return "0"
     
