@@ -9,16 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Extended XMP metadata fields for better interoperability:**
-  - `Iptc4xmpExt:PersonInImage` for IPTC Extension standard compliance (people tagging)
+  - `XMP-iptcExt:PersonInImage` for IPTC Extension standard compliance (people tagging)
   - `XMP:CreateDate` for XMP standard date field
-  - `Photoshop:DateCreated` for Adobe Photoshop compatibility
-  - `MicrosoftPhoto:Rating` for Windows Photos compatibility (maps 5-star to 99)
+  - `XMP-photoshop:DateCreated` for Adobe Photoshop compatibility
 - **Improved change detection** to include new metadata fields
 
 ### Changed
 - Extended people sync to write IPTC Extension PersonInImage field
 - Extended time sync to write XMP and Photoshop date fields
-- Extended rating sync to write Microsoft Photo rating field for Windows compatibility
 - Updated documentation to reflect new metadata fields
 
 ### Technical Details
