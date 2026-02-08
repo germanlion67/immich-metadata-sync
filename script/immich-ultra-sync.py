@@ -371,6 +371,27 @@ def api_call(
         log(f"API call failed for {endpoint} after all attempts", log_file, LogLevel.ERROR)
     return None
 
+
+def build_asset_album_map(headers: Dict, base_url: str, log_file: str) -> Dict[str, List[str]]:
+    """Build a map of asset_id -> [album_names] by fetching all albums once."""
+    all_albums = api_call("GET", "/albums", headers, base_url, log_file)
+    
+    asset_to_albums = {}
+    for album in all_albums or []:
+        album_name = album.get("albumName")
+        if not album_name:
+            continue
+            
+        for asset in album.get("assets", []):
+            asset_id = asset.get("id")
+            if asset_id:
+                if asset_id not in asset_to_albums:
+                    asset_to_albums[asset_id] = []
+                asset_to_albums[asset_id].append(album_name)
+    
+    return asset_to_albums
+
+
 def extract_asset_items(raw: Any) -> List[Dict[str, Any]]:
     """Return assets.items list from a search response or an empty list when absent."""
     return raw.get("assets", {}).get("items", []) if isinstance(raw, dict) else []
@@ -508,6 +529,8 @@ def get_current_exif_values(full_path: str, active_modes: List[str]) -> Dict[str
         tags_to_read.extend(["DateTimeOriginal", "CreateDate", "DateCreated"])  # ← FIX: DateCreated statt XMP-photoshop
     if "rating" in active_modes:
         tags_to_read.extend(["Rating"])  # ← FIX: Removed MicrosoftPhoto
+    if "albums" in active_modes:
+        tags_to_read.extend(["Event", "HierarchicalSubject"])
     
     if not tags_to_read:
         return {}
@@ -627,6 +650,7 @@ def build_exif_args(
     details: Dict[str, Any],
     active_modes: List[str],
     caption_max_len: int = DEFAULT_CAPTION_MAX_LEN,
+    album_map: Optional[Dict[str, List[str]]] = None,
 ) -> Tuple[List[str], List[str]]:
     """Build ExifTool arguments based on selected modes. Populates XMP (modern) and IPTC fields simultaneously."""
     args: List[str] = []
@@ -721,6 +745,19 @@ def build_exif_args(
         args.append(f"-Rating={rating}")
         changes.append("Rating")
 
+    # 6. ALBUM SYNC (new section after rating)
+    if "albums" in active_modes and album_map:
+        album_names = album_map.get(asset.get("id"), [])
+        if album_names:
+            # Primary album as Event
+            args.append(f"-XMP-iptcExt:Event={album_names[0]}")
+            
+            # All albums as hierarchical keywords
+            hierarchical = [f"Albums|{name}" for name in album_names]
+            args.append(f"-XMP:HierarchicalSubject={','.join(hierarchical)}")
+            
+            changes.append("Albums")
+
     return args, changes
 
 
@@ -735,6 +772,7 @@ def create_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--caption", action="store_true", help="Sync descriptions/captions.")
     parser.add_argument("--time", action="store_true", help="Sync timestamps.")
     parser.add_argument("--rating", action="store_true", help="Sync favorites/ratings.")
+    parser.add_argument("--albums", action="store_true", help="Sync album information to XMP metadata.")
     parser.add_argument("--dry-run", action="store_true", help="Simulation: log planned changes without writing.")
     parser.add_argument("--only-new", action="store_true", help="Skip files that already have ANY EXIF metadata.")
     parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR"], 
@@ -751,8 +789,14 @@ def parse_cli_args(argv: Optional[List[str]] = None) -> Tuple[argparse.Namespace
     """Parse CLI arguments and derive active modes."""
     parser = create_arg_parser()
     args = parser.parse_args(argv)
+    # Note: 'albums' is explicitly opt-in and not included in --all by default
     modes = ["people", "gps", "caption", "time", "rating"]
     active_modes = modes if args.all else [m for m in modes if getattr(args, m)]
+    
+    # Add albums if explicitly enabled
+    if args.albums:
+        active_modes.append("albums")
+    
     if not active_modes:
         parser.error("No mode selected. Use --all or individual module flags.")
     return args, active_modes
@@ -769,6 +813,7 @@ def process_asset(
     caption_max_len: int,
     log_file: str,
     exiftool: ExifToolHelper,
+    album_map: Optional[Dict[str, List[str]]] = None,
 ) -> Optional[str]:
     """Process a single asset and return a statistics key for the outcome."""
     if not details:
@@ -810,7 +855,7 @@ def process_asset(
         log(f"Skipping asset {asset_id}: file not found at {full_path}", log_file, LogLevel.DEBUG)
         return "skipped"
 
-    exif_args, change_list = build_exif_args(asset, details, active_modes, caption_max_len)
+    exif_args, change_list = build_exif_args(asset, details, active_modes, caption_max_len, album_map)
     if not change_list:
         return None
 
@@ -932,6 +977,13 @@ def main() -> None:
     statistics = {"total": len(assets), "updated": 0, "simulated": 0, "skipped": 0, "errors": 0}
     log(f"{statistics['total']} assets loaded. Starting synchronization...", log_file, LogLevel.INFO)
 
+    # Build album map if needed (before processing assets)
+    album_map = {}
+    if "albums" in active_modes:
+        log("Fetching album information...", log_file, LogLevel.INFO)
+        album_map = build_asset_album_map(headers, base_url, log_file)
+        log(f"Loaded {len(album_map)} assets with album assignments", log_file, LogLevel.INFO)
+
     # Initialize progress bar if available
     if TQDM_AVAILABLE and not dry_run:
         progress = tqdm(total=len(assets), desc="Syncing", unit="file")
@@ -970,6 +1022,7 @@ def main() -> None:
                 caption_max_len,
                 log_file,
                 exiftool,
+                album_map,
             )
             if status_key and status_key in statistics:
                 statistics[status_key] += 1
