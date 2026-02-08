@@ -10,6 +10,7 @@ Syncing Immich metadata back into your original media files.
 - Captions → `XMP:Description`, `IPTC:Caption-Abstract`
 - Time → `DateTimeOriginal`, `CreateDate`, `XMP:CreateDate`, `XMP-photoshop:DateCreated`
 - Favorites → `Rating` (5 stars for favorites, 0 otherwise)
+- Albums → `XMP-iptcExt:Event`, `XMP:HierarchicalSubject` (when `--albums` flag is used)
 
 The `--only-new` mode compares desired EXIF values with what is already on disk and skips files with no changes to reduce disk I/O.
 
@@ -21,6 +22,28 @@ The `--only-new` mode compares desired EXIF values with what is already on disk 
    python3 immich-ultra-sync.py --all --only-new
    ```
 4. Trigger an “Offline Assets Scan” in Immich to re-index updated files.
+
+## Album Synchronization
+The `--albums` flag enables syncing of Immich album assignments into XMP metadata fields. This allows you to preserve your album organization when exporting photos or using other tools that support XMP metadata.
+
+**XMP Fields Used:**
+- `XMP-iptcExt:Event` - Primary album name (IPTC Extension standard)
+- `XMP:HierarchicalSubject` - All albums as hierarchical keywords (e.g., `Albums|Summer 2024`)
+
+**Usage Examples:**
+```bash
+# Sync all metadata including albums
+python3 immich-ultra-sync.py --all --albums
+
+# Sync only people and albums
+python3 immich-ultra-sync.py --people --albums
+
+# Preview what would be synced (dry-run)
+python3 immich-ultra-sync.py --all --albums --dry-run --only-new
+```
+
+**Performance:** Album information is fetched once at startup via a single API call (`GET /albums`), ensuring minimal performance impact even for large libraries.
+
 
 ## Configuration
 Set these environment variables (or provide a config file via `--config`):
@@ -34,7 +57,8 @@ Set these environment variables (or provide a config file via `--config`):
 | `CAPTION_MAX_LEN` | Max length for captions before truncation | `2000` |
 
 Common flags:
-- `--all` enable all modules (`people`, `gps`, `caption`, `time`, `rating`)
+- `--all` enable all modules (`people`, `gps`, `caption`, `time`, `rating`, `albums`)
+- `--albums` sync album information to XMP metadata
 - `--dry-run` to preview without writing
 - `--resume` / `--clear-checkpoint` to continue or reset progress
 - `--export-stats json|csv` to capture run statistics
