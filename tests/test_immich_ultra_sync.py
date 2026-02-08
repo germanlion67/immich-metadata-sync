@@ -165,7 +165,8 @@ class ArgparseTests(ModuleLoaderMixin):
     def test_parse_all_sets_all_modes(self):
         parsed, modes = self.module.parse_cli_args(["--all"])
         self.assertTrue(parsed.all)
-        self.assertEqual(set(modes), {"people", "gps", "caption", "time", "rating", "albums"})
+        # Note: --all does NOT include albums - albums must be explicitly enabled
+        self.assertEqual(set(modes), {"people", "gps", "caption", "time", "rating"})
 
     def test_parse_requires_mode(self):
         with self.assertRaises(SystemExit):
@@ -191,6 +192,13 @@ class ArgparseTests(ModuleLoaderMixin):
         parsed, modes = self.module.parse_cli_args(["--albums"])
         self.assertTrue(parsed.albums)
         self.assertIn("albums", modes)
+    
+    def test_all_with_albums_flag(self):
+        parsed, modes = self.module.parse_cli_args(["--all", "--albums"])
+        self.assertTrue(parsed.all)
+        self.assertTrue(parsed.albums)
+        # --all gives us the basic 5 modes, plus albums is explicitly added
+        self.assertEqual(set(modes), {"people", "gps", "caption", "time", "rating", "albums"})
 
 
 class AlbumSyncTests(ModuleLoaderMixin):
@@ -216,6 +224,12 @@ class AlbumSyncTests(ModuleLoaderMixin):
                 "assets": [
                     {"id": "asset4"}
                 ]
+            },
+            {
+                # Missing albumName key (None) should be skipped
+                "assets": [
+                    {"id": "asset5"}
+                ]
             }
         ]
         
@@ -230,6 +244,16 @@ class AlbumSyncTests(ModuleLoaderMixin):
         self.assertIn("Vacation", album_map["asset1"])
         
         # asset2 should be in one album
+        self.assertEqual(album_map["asset2"], ["Summer 2024"])
+        
+        # asset3 should be in one album
+        self.assertEqual(album_map["asset3"], ["Vacation"])
+        
+        # asset4 should not be in the map (empty album name)
+        self.assertNotIn("asset4", album_map)
+        
+        # asset5 should not be in the map (missing albumName key)
+        self.assertNotIn("asset5", album_map)
         self.assertEqual(album_map["asset2"], ["Summer 2024"])
         
         # asset3 should be in one album

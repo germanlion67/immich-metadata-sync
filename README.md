@@ -57,8 +57,8 @@ Set these environment variables (or provide a config file via `--config`):
 | `CAPTION_MAX_LEN` | Max length for captions before truncation | `2000` |
 
 Common flags:
-- `--all` enable all modules (`people`, `gps`, `caption`, `time`, `rating`, `albums`)
-- `--albums` sync album information to XMP metadata
+- `--all` enable all modules (`people`, `gps`, `caption`, `time`, `rating`)
+- `--albums` sync album information to XMP metadata (opt-in, not included in `--all`)
 - `--dry-run` to preview without writing
 - `--resume` / `--clear-checkpoint` to continue or reset progress
 - `--export-stats json|csv` to capture run statistics

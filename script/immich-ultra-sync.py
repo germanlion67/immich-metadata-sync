@@ -789,8 +789,14 @@ def parse_cli_args(argv: Optional[List[str]] = None) -> Tuple[argparse.Namespace
     """Parse CLI arguments and derive active modes."""
     parser = create_arg_parser()
     args = parser.parse_args(argv)
-    modes = ["people", "gps", "caption", "time", "rating", "albums"]
+    # Note: 'albums' is explicitly opt-in and not included in --all by default
+    modes = ["people", "gps", "caption", "time", "rating"]
     active_modes = modes if args.all else [m for m in modes if getattr(args, m)]
+    
+    # Add albums if explicitly enabled
+    if args.albums:
+        active_modes.append("albums")
+    
     if not active_modes:
         parser.error("No mode selected. Use --all or individual module flags.")
     return args, active_modes
