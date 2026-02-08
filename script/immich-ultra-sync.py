@@ -373,21 +373,24 @@ def api_call(
 
 
 def build_asset_album_map(headers: Dict, base_url: str, log_file: str) -> Dict[str, List[str]]:
-    """Build a map of asset_id -> [album_names] by fetching all albums once."""
     all_albums = api_call("GET", "/albums", headers, base_url, log_file)
     
     asset_to_albums = {}
     for album in all_albums or []:
+        album_id = album.get("id")
         album_name = album.get("albumName")
-        if not album_name:
+        if not album_id or not album_name:
             continue
-            
-        for asset in album.get("assets", []):
-            asset_id = asset.get("id")
-            if asset_id:
-                if asset_id not in asset_to_albums:
-                    asset_to_albums[asset_id] = []
-                asset_to_albums[asset_id].append(album_name)
+        
+        # Fetch assets for this album
+        album_details = api_call("GET", f"/albums/{album_id}", headers, base_url, log_file)
+        if album_details:
+            for asset in album_details.get("assets", []):
+                asset_id = asset.get("id")
+                if asset_id:
+                    if asset_id not in asset_to_albums:
+                        asset_to_albums[asset_id] = []
+                    asset_to_albums[asset_id].append(album_name)
     
     return asset_to_albums
 
