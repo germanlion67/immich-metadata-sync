@@ -530,7 +530,7 @@ def get_current_exif_values(full_path: str, active_modes: List[str]) -> Dict[str
     if "rating" in active_modes:
         tags_to_read.extend(["Rating"])  # ← FIX: Removed MicrosoftPhoto
     if "albums" in active_modes:
-        tags_to_read.extend(["Event", "HierarchicalSubject"])
+        tags_to_read.extend(["Event", "HierarchicalSubject", "UserComment"])
     
     if not tags_to_read:
         return {}
@@ -755,6 +755,9 @@ def build_exif_args(
             # All albums as hierarchical keywords
             hierarchical = [f"Albums|{name}" for name in album_names]
             args.append(f"-XMP:HierarchicalSubject={','.join(hierarchical)}")
+            
+            # NEW: Write album names to EXIF:UserComment (for Windows Comments)
+            args.append(f"-EXIF:UserComment={','.join(album_names)}")
             
             changes.append("Albums")
 
