@@ -165,7 +165,7 @@ class ArgparseTests(ModuleLoaderMixin):
     def test_parse_all_sets_all_modes(self):
         parsed, modes = self.module.parse_cli_args(["--all"])
         self.assertTrue(parsed.all)
-        self.assertEqual(set(modes), {"people", "gps", "caption", "time", "rating"})
+        self.assertEqual(set(modes), {"people", "gps", "caption", "time", "rating", "albums"})
 
     def test_parse_requires_mode(self):
         with self.assertRaises(SystemExit):
@@ -186,6 +186,94 @@ class ArgparseTests(ModuleLoaderMixin):
     def test_export_stats_flag(self):
         parsed, modes = self.module.parse_cli_args(["--all", "--export-stats", "json"])
         self.assertEqual(parsed.export_stats, "json")
+    
+    def test_albums_flag(self):
+        parsed, modes = self.module.parse_cli_args(["--albums"])
+        self.assertTrue(parsed.albums)
+        self.assertIn("albums", modes)
+
+
+class AlbumSyncTests(ModuleLoaderMixin):
+    def test_build_asset_album_map(self):
+        # Mock album data
+        mock_albums = [
+            {
+                "albumName": "Summer 2024",
+                "assets": [
+                    {"id": "asset1"},
+                    {"id": "asset2"}
+                ]
+            },
+            {
+                "albumName": "Vacation",
+                "assets": [
+                    {"id": "asset1"},
+                    {"id": "asset3"}
+                ]
+            },
+            {
+                "albumName": "",  # Empty album name should be skipped
+                "assets": [
+                    {"id": "asset4"}
+                ]
+            }
+        ]
+        
+        # Create a mock api_call function
+        import unittest.mock as mock
+        with mock.patch.object(self.module, 'api_call', return_value=mock_albums):
+            album_map = self.module.build_asset_album_map({}, "http://test", "test.log")
+        
+        # asset1 should be in two albums
+        self.assertEqual(len(album_map["asset1"]), 2)
+        self.assertIn("Summer 2024", album_map["asset1"])
+        self.assertIn("Vacation", album_map["asset1"])
+        
+        # asset2 should be in one album
+        self.assertEqual(album_map["asset2"], ["Summer 2024"])
+        
+        # asset3 should be in one album
+        self.assertEqual(album_map["asset3"], ["Vacation"])
+        
+        # asset4 should not be in the map (empty album name)
+        self.assertNotIn("asset4", album_map)
+    
+    def test_build_exif_args_with_albums(self):
+        asset = {"id": "test-asset-id", "isFavorite": False}
+        details = {"exifInfo": {}}
+        album_map = {
+            "test-asset-id": ["Album1", "Album2", "Album3"]
+        }
+        
+        args, changes = self.module.build_exif_args(
+            asset, details, ["albums"], album_map=album_map
+        )
+        
+        # Check that Albums is in changes
+        self.assertIn("Albums", changes)
+        
+        # Check Event field (first album)
+        event_arg = next((a for a in args if a.startswith("-XMP-iptcExt:Event=")), None)
+        self.assertIsNotNone(event_arg)
+        self.assertEqual(event_arg, "-XMP-iptcExt:Event=Album1")
+        
+        # Check HierarchicalSubject field (all albums)
+        hierarchical_arg = next((a for a in args if a.startswith("-XMP:HierarchicalSubject=")), None)
+        self.assertIsNotNone(hierarchical_arg)
+        self.assertEqual(hierarchical_arg, "-XMP:HierarchicalSubject=Albums|Album1,Albums|Album2,Albums|Album3")
+    
+    def test_build_exif_args_without_albums(self):
+        asset = {"id": "test-asset-id", "isFavorite": False}
+        details = {"exifInfo": {}}
+        album_map = {}  # Asset not in any albums
+        
+        args, changes = self.module.build_exif_args(
+            asset, details, ["albums"], album_map=album_map
+        )
+        
+        # No changes should be made if asset not in any albums
+        self.assertNotIn("Albums", changes)
+        self.assertEqual(args, [])
 
 
 class RateLimiterTests(ModuleLoaderMixin):
