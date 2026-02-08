@@ -1,4 +1,5 @@
 # 📸 IMMICH ULTRA-SYNC
+*v1.1*
 
 Syncing Immich metadata back into your original media files.
 
@@ -10,7 +11,7 @@ Syncing Immich metadata back into your original media files.
 - Captions → `XMP:Description`, `IPTC:Caption-Abstract`
 - Time → `DateTimeOriginal`, `CreateDate`, `XMP:CreateDate`, `XMP-photoshop:DateCreated`
 - Favorites → `Rating` (5 stars for favorites, 0 otherwise)
-- Albums → `XMP-iptcExt:Event`, `XMP:HierarchicalSubject` (when `--albums` flag is used)
+- Albums → `XMP-iptcExt:Event`, `XMP:HierarchicalSubject` und `EXIF:UserComment` → Windows "Kommentare" (when `--albums` flag is used)
 
 The `--only-new` mode compares desired EXIF values with what is already on disk and skips files with no changes to reduce disk I/O.
 
@@ -29,6 +30,7 @@ The `--albums` flag enables syncing of Immich album assignments into XMP metadat
 **XMP Fields Used:**
 - `XMP-iptcExt:Event` - Primary album name (IPTC Extension standard)
 - `XMP:HierarchicalSubject` - All albums as hierarchical keywords (e.g., `Albums|Summer 2024`)
+- `EXIF:UserComment` → Windows "Kommentare"
 
 **Usage Examples:**
 ```bash
