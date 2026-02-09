@@ -340,6 +340,149 @@ class LogLevelTests(ModuleLoaderMixin):
         self.module._LOG_LEVEL = original
 
 
+class AlbumCacheTests(ModuleLoaderMixin):
+    def setUp(self):
+        """Set up test environment with temporary directory."""
+        import tempfile
+        self.test_dir = tempfile.mkdtemp()
+        self.original_cache_file = self.module.ALBUM_CACHE_FILE
+        self.original_lock_file = self.module.ALBUM_CACHE_LOCK_FILE
+        # Override cache paths to use test directory
+        self.module.ALBUM_CACHE_FILE = f"{self.test_dir}/test_cache.json"
+        self.module.ALBUM_CACHE_LOCK_FILE = f"{self.test_dir}/test_cache.lock"
+    
+    def tearDown(self):
+        """Clean up test directory and restore original cache paths."""
+        import shutil
+        shutil.rmtree(self.test_dir, ignore_errors=True)
+        self.module.ALBUM_CACHE_FILE = self.original_cache_file
+        self.module.ALBUM_CACHE_LOCK_FILE = self.original_lock_file
+    
+    def test_save_and_load_cache(self):
+        """Test saving and loading cache within TTL."""
+        log_file = f"{self.test_dir}/test.log"
+        
+        # Create test album map
+        test_map = {
+            "asset1": ["Album A", "Album B"],
+            "asset2": ["Album C"]
+        }
+        
+        # Save cache
+        result = self.module.save_album_cache(test_map, log_file)
+        self.assertTrue(result)
+        
+        # Load cache with generous TTL
+        loaded_map = self.module.load_album_cache(ttl=3600, log_file=log_file)
+        self.assertIsNotNone(loaded_map)
+        self.assertEqual(loaded_map, test_map)
+    
+    def test_load_cache_respects_ttl(self):
+        """Test that cache is not loaded when TTL is exceeded."""
+        log_file = f"{self.test_dir}/test.log"
+        
+        # Create and save test album map
+        test_map = {"asset1": ["Album A"]}
+        self.module.save_album_cache(test_map, log_file)
+        
+        # Try to load with TTL of 0 seconds (should fail)
+        loaded_map = self.module.load_album_cache(ttl=0, log_file=log_file)
+        self.assertIsNone(loaded_map)
+    
+    def test_load_cache_nonexistent(self):
+        """Test that loading nonexistent cache returns None."""
+        log_file = f"{self.test_dir}/test.log"
+        loaded_map = self.module.load_album_cache(ttl=3600, log_file=log_file)
+        self.assertIsNone(loaded_map)
+    
+    def test_clear_cache(self):
+        """Test clearing the cache."""
+        log_file = f"{self.test_dir}/test.log"
+        
+        # Create and save cache
+        test_map = {"asset1": ["Album A"]}
+        self.module.save_album_cache(test_map, log_file)
+        
+        # Clear cache
+        result = self.module.clear_album_cache(log_file)
+        self.assertTrue(result)
+        
+        # Verify cache is gone
+        import os
+        self.assertFalse(os.path.exists(self.module.get_album_cache_path()))
+    
+    def test_clear_cache_nonexistent(self):
+        """Test clearing nonexistent cache."""
+        log_file = f"{self.test_dir}/test.log"
+        result = self.module.clear_album_cache(log_file)
+        self.assertFalse(result)
+    
+    def test_stale_cache_within_max_stale(self):
+        """Test loading stale cache within max_stale limit."""
+        log_file = f"{self.test_dir}/test.log"
+        
+        # Create and save test album map
+        test_map = {"asset1": ["Album A"]}
+        self.module.save_album_cache(test_map, log_file)
+        
+        # Load as stale cache with generous max_stale
+        loaded_map = self.module.load_stale_album_cache(max_stale=3600, log_file=log_file)
+        self.assertIsNotNone(loaded_map)
+        self.assertEqual(loaded_map, test_map)
+    
+    def test_stale_cache_exceeds_max_stale(self):
+        """Test that stale cache is not loaded when exceeding max_stale."""
+        log_file = f"{self.test_dir}/test.log"
+        
+        # Create and save test album map
+        test_map = {"asset1": ["Album A"]}
+        self.module.save_album_cache(test_map, log_file)
+        
+        # Try to load with max_stale of 0 (should fail)
+        loaded_map = self.module.load_stale_album_cache(max_stale=0, log_file=log_file)
+        self.assertIsNone(loaded_map)
+    
+    def test_lock_acquire_and_release(self):
+        """Test that lock can be acquired and released."""
+        lock_path = self.module.get_album_cache_lock_path()
+        
+        # Acquire lock
+        lock_handle = self.module.acquire_lock(lock_path, timeout=5.0)
+        self.assertIsNotNone(lock_handle)
+        
+        # Release lock
+        self.module.release_lock(lock_handle)
+        
+        # Should be able to acquire again
+        lock_handle2 = self.module.acquire_lock(lock_path, timeout=5.0)
+        self.assertIsNotNone(lock_handle2)
+        self.module.release_lock(lock_handle2)
+    
+    def test_cache_file_permissions(self):
+        """Test that cache file has restrictive permissions on POSIX systems."""
+        import os
+        import stat
+        log_file = f"{self.test_dir}/test.log"
+        
+        # Create and save cache
+        test_map = {"asset1": ["Album A"]}
+        self.module.save_album_cache(test_map, log_file)
+        
+        # Check permissions on POSIX systems
+        cache_path = self.module.get_album_cache_path()
+        if os.name == 'posix':
+            file_stats = os.stat(cache_path)
+            file_mode = stat.S_IMODE(file_stats.st_mode)
+            # Should be 0o600 (read/write for owner only)
+            self.assertEqual(file_mode, 0o600)
+    
+    def test_parse_clear_album_cache_flag(self):
+        """Test that --clear-album-cache flag is parsed correctly."""
+        parsed, modes = self.module.parse_cli_args(["--albums", "--clear-album-cache"])
+        self.assertTrue(parsed.clear_album_cache)
+        self.assertIn("albums", modes)
+
+
 class ConfigLoaderTests(ModuleLoaderMixin):
     def test_load_config_missing_file(self):
         config = self.module.load_config("/nonexistent/file.conf")

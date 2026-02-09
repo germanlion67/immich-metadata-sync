@@ -5,9 +5,17 @@ All notable changes to IMMICH ULTRA-SYNC will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.1.0] - 2026-02-07
+## [1.1.0] - 2026-02-09
 
 ### Added
+- **Persistent album cache with TTL and locking:**
+  - Album data is now cached on disk (`.immich_album_cache.json`) to avoid repeated API calls
+  - Configurable cache TTL via `IMMICH_ALBUM_CACHE_TTL` environment variable (default: 24 hours)
+  - Stale cache fallback via `IMMICH_ALBUM_CACHE_MAX_STALE` (default: 7 days) when API fetch fails
+  - Cross-platform file locking (fcntl on POSIX, msvcrt on Windows) to prevent cache corruption
+  - Atomic writes using tempfile + os.replace for cache safety
+  - Cache file permissions set to 0o600 (owner read/write only) for security
+- **New CLI flag:** `--clear-album-cache` to force fresh fetch from API, ignoring cache
 - **Extended XMP metadata fields for better interoperability:**
   - `XMP-iptcExt:PersonInImage` for IPTC Extension standard compliance (people tagging)
   - `XMP:CreateDate` for XMP standard date field
@@ -17,12 +25,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Extended people sync to write IPTC Extension PersonInImage field
 - Extended time sync to write XMP and Photoshop date fields
-- Updated documentation to reflect new metadata fields
+- Updated documentation to reflect new metadata fields and album cache behavior
+- Album sync now uses persistent cache for improved performance on repeat runs
 
 ### Technical Details
 - No API changes required - all changes are in ExifTool argument generation
 - Backward compatible - existing functionality unchanged
 - Change detection automatically handles new fields with `--only-new` flag
+- Album cache uses only Python standard library (no new dependencies)
+- Comprehensive unit tests for cache functionality included
 
 ## [1.0.0] - 2026-02-05
 
