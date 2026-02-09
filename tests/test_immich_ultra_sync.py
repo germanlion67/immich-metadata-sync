@@ -360,7 +360,6 @@ class AlbumCacheTests(ModuleLoaderMixin):
     
     def test_save_and_load_cache(self):
         """Test saving and loading cache within TTL."""
-        import tempfile
         log_file = f"{self.test_dir}/test.log"
         
         # Create test album map
@@ -380,8 +379,6 @@ class AlbumCacheTests(ModuleLoaderMixin):
     
     def test_load_cache_respects_ttl(self):
         """Test that cache is not loaded when TTL is exceeded."""
-        import tempfile
-        import time
         log_file = f"{self.test_dir}/test.log"
         
         # Create and save test album map

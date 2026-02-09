@@ -15,7 +15,7 @@ import tempfile
 import threading
 import time
 from itertools import islice
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple, IO
 import requests
 
 # Platform-specific locking imports
@@ -30,6 +30,9 @@ try:
     MSVCRT_AVAILABLE = True
 except ImportError:
     MSVCRT_AVAILABLE = False
+
+# Lock size constant for Windows file locking
+LOCK_SIZE = 1  # Minimal lock size required by msvcrt.locking
 
 # ==============================================================================
 # CONFIGURATION DEFAULTS
@@ -426,7 +429,7 @@ def get_album_cache_lock_path() -> str:
     return ALBUM_CACHE_LOCK_FILE
 
 
-def acquire_lock(lock_file_path: str, timeout: float = 10.0) -> Optional[Any]:
+def acquire_lock(lock_file_path: str, timeout: float = 10.0) -> Optional[IO]:
     """
     Acquire a file lock (cross-platform).
     Returns a lock handle on success or None on failure.
@@ -434,6 +437,12 @@ def acquire_lock(lock_file_path: str, timeout: float = 10.0) -> Optional[Any]:
     """
     try:
         lock_file = open(lock_file_path, "w")
+        # Set restrictive permissions immediately after creation
+        try:
+            os.chmod(lock_file_path, 0o600)
+        except Exception:
+            pass  # Ignore permission errors on platforms that don't support it
+        
         start_time = time.time()
         
         while True:
@@ -443,8 +452,8 @@ def acquire_lock(lock_file_path: str, timeout: float = 10.0) -> Optional[Any]:
                     fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
                     return lock_file
                 elif MSVCRT_AVAILABLE:
-                    # Windows
-                    msvcrt.locking(lock_file.fileno(), msvcrt.LK_NBLCK, 1)
+                    # Windows - use LOCK_SIZE constant for clarity
+                    msvcrt.locking(lock_file.fileno(), msvcrt.LK_NBLCK, LOCK_SIZE)
                     return lock_file
                 else:
                     # No locking available, return file anyway
@@ -458,7 +467,7 @@ def acquire_lock(lock_file_path: str, timeout: float = 10.0) -> Optional[Any]:
         return None
 
 
-def release_lock(lock_handle: Any) -> None:
+def release_lock(lock_handle: Optional[IO]) -> None:
     """Release a file lock acquired with acquire_lock."""
     if lock_handle is None:
         return
@@ -466,7 +475,7 @@ def release_lock(lock_handle: Any) -> None:
         if FCNTL_AVAILABLE:
             fcntl.flock(lock_handle.fileno(), fcntl.LOCK_UN)
         elif MSVCRT_AVAILABLE:
-            msvcrt.locking(lock_handle.fileno(), msvcrt.LK_UNLCK, 1)
+            msvcrt.locking(lock_handle.fileno(), msvcrt.LK_UNLCK, LOCK_SIZE)
         lock_handle.close()
     except Exception:
         pass
@@ -564,7 +573,7 @@ def save_album_cache(album_map: Dict[str, List[str]], log_file: str) -> bool:
         }
         
         # Write atomically using tempfile + os.replace
-        cache_dir = os.path.dirname(os.path.abspath(cache_path)) if os.path.dirname(cache_path) else "."
+        cache_dir = os.path.dirname(os.path.abspath(cache_path)) or "."
         with tempfile.NamedTemporaryFile(mode="w", dir=cache_dir, delete=False, suffix=".tmp") as tmp_file:
             json.dump(cache_data, tmp_file, indent=2)
             tmp_path = tmp_file.name
