@@ -44,7 +44,7 @@ python3 immich-ultra-sync.py --people --albums
 python3 immich-ultra-sync.py --all --albums --dry-run --only-new
 ```
 
-**Performance:** Album information is fetched once at startup via a single API call (`GET /albums`), ensuring minimal performance impact even for large libraries.
+**Performance:** Album information is fetched once at startup via a single API call (`GET /albums`), ensuring minimal performance impact even for large libraries. The album data is cached on disk with a configurable TTL (Time To Live) to avoid repeated API calls on subsequent runs.
 
 
 ## Configuration
@@ -57,13 +57,35 @@ Set these environment variables (or provide a config file via `--config`):
 | `PHOTO_DIR` | Path where the photo library is mounted inside the container | `/library` |
 | `TZ` | Timezone for correct date handling | `Europe/Berlin` |
 | `CAPTION_MAX_LEN` | Max length for captions before truncation | `2000` |
+| `IMMICH_ALBUM_CACHE_TTL` | Album cache lifetime in seconds | `86400` (24 hours) |
+| `IMMICH_ALBUM_CACHE_MAX_STALE` | Maximum age for stale cache fallback in seconds | `604800` (7 days) |
 
 Common flags:
 - `--all` enable all modules (`people`, `gps`, `caption`, `time`, `rating`)
 - `--albums` sync album information to XMP metadata (opt-in, not included in `--all`)
 - `--dry-run` to preview without writing
 - `--resume` / `--clear-checkpoint` to continue or reset progress
+- `--clear-album-cache` clear the album cache before running (forces fresh fetch from API)
 - `--export-stats json|csv` to capture run statistics
+
+### Album Cache Behavior
+When `--albums` is enabled, the script maintains a persistent cache of album assignments:
+- **Cache TTL**: By default, the cache is valid for 24 hours (`IMMICH_ALBUM_CACHE_TTL`). Within this period, the script uses the cached data instead of fetching from the API.
+- **Stale Fallback**: If the API fetch fails, the script attempts to use stale cache data up to 7 days old (`IMMICH_ALBUM_CACHE_MAX_STALE`) as a fallback.
+- **Cache Location**: The cache is stored as `.immich_album_cache.json` in the current directory with file permissions set to `0o600` (owner read/write only).
+- **Clearing Cache**: Use `--clear-album-cache` to force a fresh fetch from the API, ignoring any existing cache.
+
+**Example:**
+```bash
+# First run fetches from API and caches the result
+python3 immich-ultra-sync.py --all --albums
+
+# Subsequent runs within 24 hours use the cache (much faster)
+python3 immich-ultra-sync.py --all --albums
+
+# Force fresh fetch by clearing the cache
+python3 immich-ultra-sync.py --all --albums --clear-album-cache
+```
 
 ## Documentation
 - **Docker environment setup:** [runbook.md](runbook.md)  
