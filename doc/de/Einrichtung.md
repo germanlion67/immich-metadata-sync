@@ -12,12 +12,15 @@ Erstelle ein neues Image `immich-metadata-sync:latest` in Portainer mit folgende
 ```bash
 FROM python:3.11-slim
 
-# Installiere ExifTool und Abhängigkeiten
-RUN apt-get update && apt-get install -y exiftool curl nano && \
+# Installiere nur notwendige Abhängigkeiten (ExifTool fuer Metadaten, curl für Tests)
+RUN apt-get update && apt-get install -y exiftool curl && \
     pip install --no-cache-dir requests && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/*  # Cache aufräumen für kleinere Images
 
+# Arbeitsverzeichnis setzen
 WORKDIR /app
+
+# Standardbefehl: Container läuft dauerhaft für interaktive Nutzung
 CMD ["sleep", "infinity"]
 ```
 
