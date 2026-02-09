@@ -9,10 +9,10 @@ Build an image named `immich-metadata-sync:latest` using the following Dockerfil
 ```bash
 FROM python:3.11-slim
 
-# Install ExifTool and dependencies
-RUN apt-get update && apt-get install -y exiftool curl nano && \
+# Install ExifTool and dependencies (ExifTool for Meta, curl for tests)
+RUN apt-get update && apt-get install -y exiftool curl && \
     pip install --no-cache-dir requests && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* # clear cache
 
 WORKDIR /app
 CMD ["sleep", "infinity"]
