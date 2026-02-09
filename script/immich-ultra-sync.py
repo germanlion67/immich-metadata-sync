@@ -2,6 +2,7 @@ import argparse
 import configparser
 import datetime
 from enum import Enum
+import fcntl
 from functools import wraps
 import json
 import os
@@ -11,6 +12,7 @@ import re
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from itertools import islice
@@ -36,6 +38,10 @@ MIN_CAPTION_MAX_LEN = 1
 GPS_COORDINATE_PRECISION = 6  # Decimal places ≈11cm precision, sufficient for photos
 GPS_ALTITUDE_PRECISION = 1    # Decimal places ≈10cm precision
 CHECKPOINT_FILE = ".immich_sync_checkpoint.pkl"
+
+# Album cache settings
+DEFAULT_ALBUM_CACHE_TTL = 86400  # 24 hours in seconds
+DEFAULT_ALBUM_CACHE_MAX_STALE = 604800  # 7 days in seconds (max age to use stale cache on API failure)
 
 
 # ==============================================================================
@@ -219,6 +225,193 @@ def load_checkpoint(log_file: str) -> set:
         return set()
 
 
+# ==============================================================================
+# ALBUM CACHE FUNCTIONS
+# ==============================================================================
+def get_album_cache_dir() -> Path:
+    """Get the album cache directory path (XDG_CACHE_HOME or ~/.cache)."""
+    cache_home = os.environ.get("XDG_CACHE_HOME")
+    if cache_home:
+        cache_dir = Path(cache_home) / "immich-metadata-sync"
+    else:
+        cache_dir = Path.home() / ".cache" / "immich-metadata-sync"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return cache_dir
+
+
+def get_album_cache_path() -> Path:
+    """Get the album cache file path."""
+    return get_album_cache_dir() / "albums_cache.json"
+
+
+def get_album_cache_lock_path() -> Path:
+    """Get the album cache lock file path."""
+    return get_album_cache_dir() / "albums_cache.lock"
+
+
+def load_album_cache(log_file: str, ttl: int = DEFAULT_ALBUM_CACHE_TTL) -> Optional[Dict[str, List[str]]]:
+    """
+    Load album cache from disk if it exists and is not expired.
+    
+    Args:
+        log_file: Path to log file
+        ttl: Time-to-live in seconds for cache validity
+        
+    Returns:
+        Album map dict or None if cache is expired or doesn't exist
+    """
+    cache_path = get_album_cache_path()
+    lock_path = get_album_cache_lock_path()
+    
+    if not cache_path.exists():
+        log("Album cache file does not exist", log_file, LogLevel.DEBUG)
+        return None
+    
+    try:
+        # Acquire shared lock for reading
+        with open(lock_path, 'w') as lock_file:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_SH)
+            try:
+                with open(cache_path, 'r') as f:
+                    cache_data = json.load(f)
+                
+                # Validate cache structure
+                if not isinstance(cache_data, dict) or "timestamp" not in cache_data or "album_map" not in cache_data:
+                    log("Album cache has invalid structure", log_file, LogLevel.WARNING)
+                    return None
+                
+                # Check if cache is expired
+                timestamp = cache_data["timestamp"]
+                cache_age = time.time() - timestamp
+                
+                if cache_age > ttl:
+                    log(f"Album cache expired (age: {cache_age:.0f}s, TTL: {ttl}s)", log_file, LogLevel.DEBUG)
+                    return None
+                
+                album_map = cache_data["album_map"]
+                log(f"Loaded album cache (age: {cache_age:.0f}s, {len(album_map)} assets)", log_file, LogLevel.INFO)
+                return album_map
+                
+            finally:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+    
+    except Exception as e:
+        log(f"Failed to load album cache: {e}", log_file, LogLevel.WARNING)
+        return None
+
+
+def save_album_cache(album_map: Dict[str, List[str]], log_file: str):
+    """
+    Save album cache to disk with atomic write and file locking.
+    
+    Args:
+        album_map: Dictionary mapping asset IDs to list of album names
+        log_file: Path to log file
+    """
+    cache_path = get_album_cache_path()
+    lock_path = get_album_cache_lock_path()
+    
+    try:
+        cache_data = {
+            "timestamp": time.time(),
+            "album_map": album_map
+        }
+        
+        # Acquire exclusive lock for writing
+        with open(lock_path, 'w') as lock_file:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+            try:
+                # Atomic write: write to temp file first, then rename
+                cache_dir = get_album_cache_dir()
+                with tempfile.NamedTemporaryFile(mode='w', dir=cache_dir, delete=False, suffix='.tmp') as tmp_file:
+                    json.dump(cache_data, tmp_file, indent=2)
+                    tmp_path = tmp_file.name
+                
+                # Atomic rename
+                os.replace(tmp_path, cache_path)
+                log(f"Album cache saved ({len(album_map)} assets)", log_file, LogLevel.DEBUG)
+                
+            finally:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+    
+    except Exception as e:
+        log(f"Failed to save album cache: {e}", log_file, LogLevel.WARNING)
+
+
+def clear_album_cache(log_file: str):
+    """
+    Clear the album cache by deleting the cache file.
+    
+    Args:
+        log_file: Path to log file
+    """
+    cache_path = get_album_cache_path()
+    lock_path = get_album_cache_lock_path()
+    
+    try:
+        # Acquire exclusive lock
+        with open(lock_path, 'w') as lock_file:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+            try:
+                if cache_path.exists():
+                    cache_path.unlink()
+                    log("Album cache cleared", log_file, LogLevel.INFO)
+                else:
+                    log("Album cache does not exist", log_file, LogLevel.INFO)
+            finally:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+    
+    except Exception as e:
+        log(f"Failed to clear album cache: {e}", log_file, LogLevel.WARNING)
+
+
+def load_stale_album_cache(log_file: str, max_stale: int = DEFAULT_ALBUM_CACHE_MAX_STALE) -> Optional[Dict[str, List[str]]]:
+    """
+    Load stale album cache as fallback when API is unavailable.
+    
+    Args:
+        log_file: Path to log file
+        max_stale: Maximum age in seconds for stale cache to be considered usable
+        
+    Returns:
+        Album map dict or None if cache is too old or doesn't exist
+    """
+    cache_path = get_album_cache_path()
+    lock_path = get_album_cache_lock_path()
+    
+    if not cache_path.exists():
+        return None
+    
+    try:
+        # Acquire shared lock for reading
+        with open(lock_path, 'w') as lock_file:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_SH)
+            try:
+                with open(cache_path, 'r') as f:
+                    cache_data = json.load(f)
+                
+                if not isinstance(cache_data, dict) or "timestamp" not in cache_data or "album_map" not in cache_data:
+                    return None
+                
+                timestamp = cache_data["timestamp"]
+                cache_age = time.time() - timestamp
+                
+                if cache_age > max_stale:
+                    log(f"Stale album cache too old (age: {cache_age:.0f}s, max: {max_stale}s)", log_file, LogLevel.WARNING)
+                    return None
+                
+                album_map = cache_data["album_map"]
+                log(f"Using stale album cache as fallback (age: {cache_age:.0f}s, {len(album_map)} assets)", log_file, LogLevel.WARNING)
+                return album_map
+                
+            finally:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+    
+    except Exception as e:
+        log(f"Failed to load stale album cache: {e}", log_file, LogLevel.WARNING)
+        return None
+
+
 def load_config(config_file: str = "immich-sync.conf") -> dict:
     """Load configuration from file."""
     config = configparser.ConfigParser()
@@ -373,6 +566,7 @@ def api_call(
 
 
 def build_asset_album_map(headers: Dict, base_url: str, log_file: str) -> Dict[str, List[str]]:
+    """Fetch album information from the API and build asset-to-albums mapping."""
     all_albums = api_call("GET", "/albums", headers, base_url, log_file)
     
     asset_to_albums = {}
@@ -393,6 +587,61 @@ def build_asset_album_map(headers: Dict, base_url: str, log_file: str) -> Dict[s
                     asset_to_albums[asset_id].append(album_name)
     
     return asset_to_albums
+
+
+def get_album_map_with_cache(
+    headers: Dict,
+    base_url: str,
+    log_file: str,
+    ttl: int = DEFAULT_ALBUM_CACHE_TTL,
+    max_stale: int = DEFAULT_ALBUM_CACHE_MAX_STALE,
+    use_cache: bool = True
+) -> Dict[str, List[str]]:
+    """
+    Get album map with caching support.
+    
+    Args:
+        headers: API headers
+        base_url: Immich API base URL
+        log_file: Path to log file
+        ttl: Cache time-to-live in seconds
+        max_stale: Maximum age for stale cache fallback in seconds
+        use_cache: Whether to use cache (False to force refresh)
+        
+    Returns:
+        Dictionary mapping asset IDs to list of album names
+    """
+    album_map = {}
+    
+    # Try to load from cache if enabled
+    if use_cache:
+        album_map = load_album_cache(log_file, ttl)
+        if album_map is not None:
+            return album_map
+    
+    # Cache miss or disabled - fetch from API
+    try:
+        log("Fetching album information from API...", log_file, LogLevel.INFO)
+        album_map = build_asset_album_map(headers, base_url, log_file)
+        
+        # Save to cache for future use
+        if album_map:
+            save_album_cache(album_map, log_file)
+        
+        return album_map
+        
+    except Exception as e:
+        log(f"Failed to fetch album information from API: {e}", log_file, LogLevel.ERROR)
+        
+        # Try to use stale cache as fallback
+        if use_cache:
+            stale_map = load_stale_album_cache(log_file, max_stale)
+            if stale_map is not None:
+                return stale_map
+        
+        # No cache available, return empty map
+        log("No album cache available, continuing without albums", log_file, LogLevel.WARNING)
+        return {}
 
 
 def extract_asset_items(raw: Any) -> List[Dict[str, Any]]:
@@ -788,6 +1037,17 @@ def create_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--config", help="Path to config file", default="immich-sync.conf")
     parser.add_argument("--export-stats", choices=["json", "csv"], 
                        help="Export statistics to file")
+    
+    # Album cache options
+    parser.add_argument("--clear-album-cache", action="store_true", 
+                       help="Clear the album cache before running")
+    parser.add_argument("--album-cache-ttl", type=int, default=DEFAULT_ALBUM_CACHE_TTL,
+                       help=f"Album cache time-to-live in seconds (default: {DEFAULT_ALBUM_CACHE_TTL})")
+    parser.add_argument("--album-cache-max-stale", type=int, default=DEFAULT_ALBUM_CACHE_MAX_STALE,
+                       help=f"Maximum age for stale cache fallback in seconds (default: {DEFAULT_ALBUM_CACHE_MAX_STALE})")
+    parser.add_argument("--no-album-cache", action="store_true",
+                       help="Disable album cache and always fetch from API")
+    
     return parser
 
 
@@ -938,6 +1198,10 @@ def main() -> None:
     if args.clear_checkpoint and Path(CHECKPOINT_FILE).exists():
         Path(CHECKPOINT_FILE).unlink()
         log("Checkpoint cleared", log_file, LogLevel.INFO)
+    
+    # Handle album cache clear
+    if args.clear_album_cache:
+        clear_album_cache(log_file)
 
     # Validate credentials before creating headers
     if not base_url or not api_key:
@@ -986,8 +1250,15 @@ def main() -> None:
     # Build album map if needed (before processing assets)
     album_map = {}
     if "albums" in active_modes:
-        log("Fetching album information...", log_file, LogLevel.INFO)
-        album_map = build_asset_album_map(headers, base_url, log_file)
+        use_cache = not args.no_album_cache
+        album_map = get_album_map_with_cache(
+            headers, 
+            base_url, 
+            log_file, 
+            ttl=args.album_cache_ttl,
+            max_stale=args.album_cache_max_stale,
+            use_cache=use_cache
+        )
         log(f"Loaded {len(album_map)} assets with album assignments", log_file, LogLevel.INFO)
 
     # Initialize progress bar if available
