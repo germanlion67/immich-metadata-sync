@@ -11,11 +11,25 @@ import re
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from itertools import islice
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 import requests
+
+# Platform-specific locking imports
+try:
+    import fcntl
+    FCNTL_AVAILABLE = True
+except ImportError:
+    FCNTL_AVAILABLE = False
+
+try:
+    import msvcrt
+    MSVCRT_AVAILABLE = True
+except ImportError:
+    MSVCRT_AVAILABLE = False
 
 # ==============================================================================
 # CONFIGURATION DEFAULTS
@@ -36,6 +50,10 @@ MIN_CAPTION_MAX_LEN = 1
 GPS_COORDINATE_PRECISION = 6  # Decimal places ≈11cm precision, sufficient for photos
 GPS_ALTITUDE_PRECISION = 1    # Decimal places ≈10cm precision
 CHECKPOINT_FILE = ".immich_sync_checkpoint.pkl"
+ALBUM_CACHE_FILE = ".immich_album_cache.json"
+ALBUM_CACHE_LOCK_FILE = ".immich_album_cache.lock"
+DEFAULT_ALBUM_CACHE_TTL = 86400  # 24 hours
+DEFAULT_ALBUM_CACHE_MAX_STALE = 604800  # 7 days
 
 
 # ==============================================================================
@@ -393,6 +411,199 @@ def build_asset_album_map(headers: Dict, base_url: str, log_file: str) -> Dict[s
                     asset_to_albums[asset_id].append(album_name)
     
     return asset_to_albums
+
+
+# ==============================================================================
+# ALBUM CACHE HELPERS
+# ==============================================================================
+def get_album_cache_path() -> str:
+    """Return the path to the album cache file."""
+    return ALBUM_CACHE_FILE
+
+
+def get_album_cache_lock_path() -> str:
+    """Return the path to the album cache lock file."""
+    return ALBUM_CACHE_LOCK_FILE
+
+
+def acquire_lock(lock_file_path: str, timeout: float = 10.0) -> Optional[Any]:
+    """
+    Acquire a file lock (cross-platform).
+    Returns a lock handle on success or None on failure.
+    The caller is responsible for releasing the lock and closing the file.
+    """
+    try:
+        lock_file = open(lock_file_path, "w")
+        start_time = time.time()
+        
+        while True:
+            try:
+                if FCNTL_AVAILABLE:
+                    # POSIX systems (Linux, macOS)
+                    fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    return lock_file
+                elif MSVCRT_AVAILABLE:
+                    # Windows
+                    msvcrt.locking(lock_file.fileno(), msvcrt.LK_NBLCK, 1)
+                    return lock_file
+                else:
+                    # No locking available, return file anyway
+                    return lock_file
+            except (IOError, OSError):
+                if time.time() - start_time >= timeout:
+                    lock_file.close()
+                    return None
+                time.sleep(0.1)
+    except Exception:
+        return None
+
+
+def release_lock(lock_handle: Any) -> None:
+    """Release a file lock acquired with acquire_lock."""
+    if lock_handle is None:
+        return
+    try:
+        if FCNTL_AVAILABLE:
+            fcntl.flock(lock_handle.fileno(), fcntl.LOCK_UN)
+        elif MSVCRT_AVAILABLE:
+            msvcrt.locking(lock_handle.fileno(), msvcrt.LK_UNLCK, 1)
+        lock_handle.close()
+    except Exception:
+        pass
+
+
+def load_album_cache(ttl: int, log_file: str) -> Optional[Dict[str, List[str]]]:
+    """
+    Load the album cache from disk if it exists and is within TTL.
+    Returns None if cache doesn't exist, is expired, or can't be loaded.
+    """
+    cache_path = get_album_cache_path()
+    if not os.path.exists(cache_path):
+        return None
+    
+    lock_path = get_album_cache_lock_path()
+    lock_handle = acquire_lock(lock_path, timeout=5.0)
+    if lock_handle is None:
+        log("Failed to acquire lock for reading album cache", log_file, LogLevel.WARNING)
+        return None
+    
+    try:
+        with open(cache_path, "r") as f:
+            data = json.load(f)
+        
+        timestamp = data.get("timestamp", 0)
+        cache_age = time.time() - timestamp
+        
+        if cache_age > ttl:
+            log(f"Album cache expired (age: {int(cache_age)}s, TTL: {ttl}s)", log_file, LogLevel.DEBUG)
+            return None
+        
+        log(f"Loaded album cache from disk (age: {int(cache_age)}s)", log_file, LogLevel.INFO)
+        return data.get("data", {})
+    except Exception as e:
+        log(f"Failed to load album cache: {e}", log_file, LogLevel.WARNING)
+        return None
+    finally:
+        release_lock(lock_handle)
+
+
+def load_stale_album_cache(max_stale: int, log_file: str) -> Optional[Dict[str, List[str]]]:
+    """
+    Load the album cache even if expired, up to max_stale seconds.
+    Used as a fallback when build_asset_album_map fails.
+    Returns None if cache doesn't exist, is too old, or can't be loaded.
+    """
+    cache_path = get_album_cache_path()
+    if not os.path.exists(cache_path):
+        return None
+    
+    lock_path = get_album_cache_lock_path()
+    lock_handle = acquire_lock(lock_path, timeout=5.0)
+    if lock_handle is None:
+        log("Failed to acquire lock for reading stale album cache", log_file, LogLevel.WARNING)
+        return None
+    
+    try:
+        with open(cache_path, "r") as f:
+            data = json.load(f)
+        
+        timestamp = data.get("timestamp", 0)
+        cache_age = time.time() - timestamp
+        
+        if cache_age > max_stale:
+            log(f"Album cache too old (age: {int(cache_age)}s, max_stale: {max_stale}s)", log_file, LogLevel.DEBUG)
+            return None
+        
+        log(f"Loaded STALE album cache as fallback (age: {int(cache_age)}s)", log_file, LogLevel.WARNING)
+        return data.get("data", {})
+    except Exception as e:
+        log(f"Failed to load stale album cache: {e}", log_file, LogLevel.WARNING)
+        return None
+    finally:
+        release_lock(lock_handle)
+
+
+def save_album_cache(album_map: Dict[str, List[str]], log_file: str) -> bool:
+    """
+    Save the album cache to disk atomically with locking.
+    Returns True on success, False on failure.
+    """
+    cache_path = get_album_cache_path()
+    lock_path = get_album_cache_lock_path()
+    
+    lock_handle = acquire_lock(lock_path, timeout=10.0)
+    if lock_handle is None:
+        log("Failed to acquire lock for writing album cache", log_file, LogLevel.WARNING)
+        return False
+    
+    try:
+        # Create cache data structure
+        cache_data = {
+            "timestamp": time.time(),
+            "data": album_map
+        }
+        
+        # Write atomically using tempfile + os.replace
+        cache_dir = os.path.dirname(os.path.abspath(cache_path)) if os.path.dirname(cache_path) else "."
+        with tempfile.NamedTemporaryFile(mode="w", dir=cache_dir, delete=False, suffix=".tmp") as tmp_file:
+            json.dump(cache_data, tmp_file, indent=2)
+            tmp_path = tmp_file.name
+        
+        # Try to set restrictive permissions (0o600)
+        try:
+            os.chmod(tmp_path, 0o600)
+        except Exception:
+            pass  # Ignore permission errors on platforms that don't support it
+        
+        # Atomic replace
+        os.replace(tmp_path, cache_path)
+        
+        log(f"Saved album cache to disk ({len(album_map)} assets)", log_file, LogLevel.INFO)
+        return True
+    except Exception as e:
+        log(f"Failed to save album cache: {e}", log_file, LogLevel.ERROR)
+        return False
+    finally:
+        release_lock(lock_handle)
+
+
+def clear_album_cache(log_file: str) -> bool:
+    """
+    Clear the album cache file.
+    Returns True on success, False if cache didn't exist or couldn't be removed.
+    """
+    cache_path = get_album_cache_path()
+    if not os.path.exists(cache_path):
+        log("Album cache does not exist, nothing to clear", log_file, LogLevel.INFO)
+        return False
+    
+    try:
+        os.remove(cache_path)
+        log("Album cache cleared", log_file, LogLevel.INFO)
+        return True
+    except Exception as e:
+        log(f"Failed to clear album cache: {e}", log_file, LogLevel.ERROR)
+        return False
 
 
 def extract_asset_items(raw: Any) -> List[Dict[str, Any]]:
@@ -785,6 +996,7 @@ def create_arg_parser() -> argparse.ArgumentParser:
                        default="INFO", help="Set logging verbosity")
     parser.add_argument("--resume", action="store_true", help="Resume from previous run")
     parser.add_argument("--clear-checkpoint", action="store_true", help="Clear checkpoint and start fresh")
+    parser.add_argument("--clear-album-cache", action="store_true", help="Clear album cache before running")
     parser.add_argument("--config", help="Path to config file", default="immich-sync.conf")
     parser.add_argument("--export-stats", choices=["json", "csv"], 
                        help="Export statistics to file")
@@ -983,12 +1195,42 @@ def main() -> None:
     statistics = {"total": len(assets), "updated": 0, "simulated": 0, "skipped": 0, "errors": 0}
     log(f"{statistics['total']} assets loaded. Starting synchronization...", log_file, LogLevel.INFO)
 
-    # Build album map if needed (before processing assets)
+    # Build album map if needed (before processing assets) with caching
     album_map = {}
     if "albums" in active_modes:
-        log("Fetching album information...", log_file, LogLevel.INFO)
-        album_map = build_asset_album_map(headers, base_url, log_file)
-        log(f"Loaded {len(album_map)} assets with album assignments", log_file, LogLevel.INFO)
+        # Get cache TTL and max_stale from environment
+        cache_ttl = get_env_int("IMMICH_ALBUM_CACHE_TTL", DEFAULT_ALBUM_CACHE_TTL)
+        cache_max_stale = get_env_int("IMMICH_ALBUM_CACHE_MAX_STALE", DEFAULT_ALBUM_CACHE_MAX_STALE)
+        
+        # Clear cache if requested
+        if args.clear_album_cache:
+            clear_album_cache(log_file)
+        
+        # Try to load from cache
+        log("Checking album cache...", log_file, LogLevel.DEBUG)
+        album_map = load_album_cache(cache_ttl, log_file)
+        
+        if album_map is None:
+            # Cache miss or expired - fetch from API
+            log("Fetching album information from API...", log_file, LogLevel.INFO)
+            try:
+                album_map = build_asset_album_map(headers, base_url, log_file)
+                log(f"Loaded {len(album_map)} assets with album assignments", log_file, LogLevel.INFO)
+                
+                # Save to cache
+                save_album_cache(album_map, log_file)
+            except Exception as e:
+                log(f"Failed to fetch album information: {e}", log_file, LogLevel.ERROR)
+                
+                # Try to load stale cache as fallback
+                log("Attempting to use stale cache as fallback...", log_file, LogLevel.WARNING)
+                album_map = load_stale_album_cache(cache_max_stale, log_file)
+                
+                if album_map is None:
+                    log("No fallback cache available, continuing without album sync", log_file, LogLevel.WARNING)
+                    album_map = {}
+        else:
+            log(f"Using cached album data ({len(album_map)} assets with album assignments)", log_file, LogLevel.INFO)
 
     # Initialize progress bar if available
     if TQDM_AVAILABLE and not dry_run:
