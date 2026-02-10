@@ -1,5 +1,5 @@
 # 📸 IMMICH ULTRA-SYNC
-*v1.1*
+*v1.2*
 
 Syncing Immich metadata back into your original media files.
 
@@ -12,6 +12,7 @@ Syncing Immich metadata back into your original media files.
 - Time → `DateTimeOriginal`, `CreateDate`, `XMP:CreateDate`, `XMP-photoshop:DateCreated`
 - Favorites → `Rating` (5 stars for favorites, 0 otherwise)
 - Albums → `XMP-iptcExt:Event`, `XMP:HierarchicalSubject` und `EXIF:UserComment` → Windows "Kommentare" (when `--albums` flag is used)
+- Face Coordinates → `RegionInfo` (MWG-RS XMP regions with bounding boxes, when `--face-coordinates` flag is used)
 
 The `--only-new` mode compares desired EXIF values with what is already on disk and skips files with no changes to reduce disk I/O.
 
@@ -46,6 +47,31 @@ python3 immich-ultra-sync.py --all --albums --dry-run --only-new
 
 **Performance:** Album information is fetched once at startup via a single API call (`GET /albums`), ensuring minimal performance impact even for large libraries. The album data is cached on disk with a configurable TTL (Time To Live) to avoid repeated API calls on subsequent runs.
 
+## Face Coordinates (MWG-RS)
+The `--face-coordinates` flag enables syncing of Immich face detection bounding boxes into XMP metadata as MWG-RS (Metadata Working Group Region Structure) regions. This allows tools like Lightroom, digiKam, and other MWG-RS-aware applications to display face regions.
+
+**How it works:**
+- Immich provides pixel bounding boxes (X1/Y1/X2/Y2) and image dimensions for each detected face
+- The script converts these to normalized MWG-RS coordinates (center X/Y, width, height in 0–1 range)
+- Each region is written with `Type=Face` and `Name=<person name>`
+
+**Usage Examples:**
+```bash
+# Sync people names and face coordinates
+python3 immich-ultra-sync.py --people --face-coordinates
+
+# Sync all metadata plus face coordinates
+python3 immich-ultra-sync.py --all --face-coordinates
+
+# Preview what would be synced (dry-run)
+python3 immich-ultra-sync.py --all --face-coordinates --dry-run
+```
+
+**Notes:**
+- `--face-coordinates` is opt-in and not included in `--all`
+- Requires Immich API to return face bounding box data in the asset details (available in recent Immich versions)
+- Unnamed persons are skipped
+
 
 ## Configuration
 Set these environment variables (or provide a config file via `--config`):
@@ -63,6 +89,7 @@ Set these environment variables (or provide a config file via `--config`):
 Common flags:
 - `--all` enable all modules (`people`, `gps`, `caption`, `time`, `rating`)
 - `--albums` sync album information to XMP metadata (opt-in, not included in `--all`)
+- `--face-coordinates` sync face bounding boxes as MWG-RS regions to XMP (opt-in, not included in `--all`)
 - `--dry-run` to preview without writing
 - `--resume` / `--clear-checkpoint` to continue or reset progress
 - `--clear-album-cache` clear the album cache before running (forces fresh fetch from API)
