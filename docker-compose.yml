@@ -7,10 +7,11 @@ services:
     user: app  # Non-root User aus dem Dockerfile
     restart: unless-stopped
     environment:
-      - IMMICH_URL=http://your-immich-server:2283  # Passe an deine Immich-Instanz an
-      - API_KEY=your-api-key  # Ersetze mit deinem API-Key
+      - IMMICH_INSTANCE_URL=http://your-immich-server:2283  # Ersetze mit deiner Immich-URL
+      - IMMICH_API_KEY=your-api-key  # Ersetze mit deinem API-Key
       - ARGS=--all --dry-run  # Passe an; Default ist --help
-      # Weitere Env-Variablen aus deinem Script hinzufügen (z.B. für Logs, Batch-Size)
+      # Optional: Weitere Env-Variablen aus deinem Script hinzufügen (z.B. für Logs, Batch-Size)
+      # - LOG_FILE=/app/logs/immich_ultra_sync.txt  # Wenn du Logs umleiten willst
     volumes:
       - /path/to/your/photo/library:/library  # Mount deine Photo-Bibliothek
       - ./logs:/app/logs  # Optional: Für Logs persistieren
