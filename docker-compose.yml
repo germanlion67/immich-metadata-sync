@@ -6,8 +6,6 @@ services:
     container_name: immich-metadata-sync
     user: app  # Non-root User aus dem Dockerfile
     # restart: unless-stopped # inaktiv=Schleife läuft genau 1x / aktiv=läuft permanant als Schleife (NUR für TEST-Zwecke)
-    env_file:
-      - .env  # Lädt Vars aus .env-Datei
     volumes:
       - /data/library:/library  # Mount deine Photo-Bibliothek
       - ./logs:/app/logs  # Optional: Für Logs persistieren
