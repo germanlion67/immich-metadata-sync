@@ -9,6 +9,7 @@ services:
     environment:
       - IMMICH_URL=http://your-immich-server:2283  # Passe an deine Immich-Instanz an
       - API_KEY=your-api-key  # Ersetze mit deinem API-Key
+      - ARGS=--all --dry-run  # Passe an; Default ist --help
       # Weitere Env-Variablen aus deinem Script hinzufügen (z.B. für Logs, Batch-Size)
     volumes:
       - /path/to/your/photo/library:/library  # Mount deine Photo-Bibliothek
