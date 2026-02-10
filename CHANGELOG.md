@@ -5,6 +5,31 @@ All notable changes to IMMICH ULTRA-SYNC will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-02-10
+
+### Added
+- **Face coordinate sync (MWG-RS regions):**
+  - New `--face-coordinates` CLI flag to write face bounding boxes as MWG-RS XMP regions
+  - `convert_bbox_to_mwg_rs()` function converts pixel bounding box (X1/Y1/X2/Y2) to normalized MWG-RS center/size coordinates
+  - Writes `RegionInfo` struct via ExifTool `-struct` mode, compatible with Lightroom, digiKam, and other MWG-RS-aware tools
+  - Supports multiple faces per image, each with person name and area
+  - Change detection for MWG-RS regions using canonical name:coordinates normalization
+  - `MWGRS_COORDINATE_PRECISION` (6 decimals) for writing, `MWGRS_COMPARE_PRECISION` (4 decimals) for comparison
+- **New CLI flag:** `--face-coordinates` to enable face coordinate sync (opt-in, not included in `--all`)
+- **13 new unit tests** for face coordinate functionality
+
+### Changed
+- Extended `build_exif_args()` with MWG-RS region generation from Immich face data
+- Extended `get_current_exif_values()` to read `RegionInfo` structs (dict handling)
+- Extended `normalize_exif_value()` with canonical region comparison logic
+- Updated `immich-sync.conf.example` with album cache TTL settings
+
+### Technical Details
+- Face data is read from `details["people"][].faces[]` in the existing asset detail response (no additional API calls needed)
+- MWG-RS regions use `Unit=normalized` for area and `Unit=pixel` for AppliedToDimensions
+- The `-struct` flag is added to ExifTool args only when face coordinates are being written
+- Backward compatible: existing functionality unchanged, `--face-coordinates` is entirely opt-in
+
 ## [1.1.0] - 2026-02-09
 
 ### Added

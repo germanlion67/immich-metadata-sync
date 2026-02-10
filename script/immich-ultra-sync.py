@@ -52,6 +52,8 @@ DEFAULT_CAPTION_MAX_LEN = 2000
 MIN_CAPTION_MAX_LEN = 1
 GPS_COORDINATE_PRECISION = 6  # Decimal places ≈11cm precision, sufficient for photos
 GPS_ALTITUDE_PRECISION = 1    # Decimal places ≈10cm precision
+MWGRS_COORDINATE_PRECISION = 6  # Decimal places for MWG-RS normalized coordinates (0-1)
+MWGRS_COMPARE_PRECISION = 4    # Decimal places for MWG-RS comparison (avoids float drift)
 CHECKPOINT_FILE = ".immich_sync_checkpoint.pkl"
 ALBUM_CACHE_FILE = ".immich_album_cache.json"
 ALBUM_CACHE_LOCK_FILE = ".immich_album_cache.lock"
@@ -754,6 +756,8 @@ def get_current_exif_values(full_path: str, active_modes: List[str]) -> Dict[str
         tags_to_read.extend(["Rating"])  # ← FIX: Removed MicrosoftPhoto
     if "albums" in active_modes:
         tags_to_read.extend(["Event", "HierarchicalSubject", "UserComment"])
+    if "face-coordinates" in active_modes:
+        tags_to_read.extend(["RegionInfo"])
     
     if not tags_to_read:
         return {}
@@ -780,8 +784,11 @@ def get_current_exif_values(full_path: str, active_modes: List[str]) -> Dict[str
             if tag in file_data:
                 value = file_data[tag]
                 if value is not None and value != "" and value != "-":
+                    # Handle structs (RegionInfo is a dict)
+                    if isinstance(value, dict):
+                        values[tag] = json.dumps(value, sort_keys=True)
                     # Handle arrays (Subject is an array)
-                    if isinstance(value, list):
+                    elif isinstance(value, list):
                         # Join array elements, or take first element if it's already comma-separated
                         if len(value) == 1:
                             values[tag] = str(value[0])
@@ -860,12 +867,55 @@ def normalize_exif_value(value: str, tag: str) -> str:
         # Take first 10 characters (YYYY-MM-DD)
         if len(normalized) >= 10:
             return normalized[:10]
+    # MWG-RS RegionInfo: normalize to canonical name:coordinates representation
+    if tag_short == "RegionInfo":
+        try:
+            data = json.loads(value) if isinstance(value, str) else value
+            if isinstance(data, dict):
+                regions = data.get("RegionList", [])
+                canonical = []
+                for r in sorted(regions, key=lambda r: r.get("Name", "")):
+                    area = r.get("Area", {})
+                    canonical.append(
+                        f"{r.get('Name', '')}:"
+                        f"{round(float(area.get('X', 0)), MWGRS_COMPARE_PRECISION)},"
+                        f"{round(float(area.get('Y', 0)), MWGRS_COMPARE_PRECISION)},"
+                        f"{round(float(area.get('W', 0)), MWGRS_COMPARE_PRECISION)},"
+                        f"{round(float(area.get('H', 0)), MWGRS_COMPARE_PRECISION)}"
+                    )
+                return "|".join(canonical)
+        except (json.JSONDecodeError, ValueError, TypeError):
+            pass
     
     return value
 
 
 # ← VERBESSERUNG 6: Funktion entfernt, da sie nicht mehr verwendet wird
 # Die Logik wurde direkt in process_asset() integriert für bessere Performance
+
+
+def convert_bbox_to_mwg_rs(
+    x1: int, y1: int, x2: int, y2: int,
+    image_width: int, image_height: int,
+) -> Optional[Dict[str, float]]:
+    """Convert pixel bounding box (X1/Y1/X2/Y2) to MWG-RS normalized region coordinates.
+
+    Returns dict with X, Y (center), W, H as values in [0..1] or None on invalid input.
+    """
+    if image_width <= 0 or image_height <= 0:
+        return None
+    bbox_w = x2 - x1
+    bbox_h = y2 - y1
+    if bbox_w <= 0 or bbox_h <= 0:
+        return None
+    center_x = x1 + bbox_w / 2
+    center_y = y1 + bbox_h / 2
+    return {
+        "X": round(center_x / image_width, MWGRS_COORDINATE_PRECISION),
+        "Y": round(center_y / image_height, MWGRS_COORDINATE_PRECISION),
+        "W": round(bbox_w / image_width, MWGRS_COORDINATE_PRECISION),
+        "H": round(bbox_h / image_height, MWGRS_COORDINATE_PRECISION),
+    }
 
 
 def build_exif_args(
@@ -984,6 +1034,52 @@ def build_exif_args(
             
             changes.append("Albums")
 
+    # 7. FACE COORDINATES SYNC (MWG-RS regions)
+    if "face-coordinates" in active_modes:
+        people_data = details.get("people", [])
+        region_list = []
+        first_face = None
+        for person in people_data:
+            name = person.get("name")
+            if not name:
+                continue
+            for face in person.get("faces", []):
+                x1 = face.get("boundingBoxX1")
+                y1 = face.get("boundingBoxY1")
+                x2 = face.get("boundingBoxX2")
+                y2 = face.get("boundingBoxY2")
+                img_w = face.get("imageWidth")
+                img_h = face.get("imageHeight")
+                if all(v is not None for v in [x1, y1, x2, y2, img_w, img_h]):
+                    area = convert_bbox_to_mwg_rs(x1, y1, x2, y2, img_w, img_h)
+                    if area:
+                        if first_face is None:
+                            first_face = face
+                        region_list.append({
+                            "Area": {
+                                "X": area["X"],
+                                "Y": area["Y"],
+                                "W": area["W"],
+                                "H": area["H"],
+                                "Unit": "normalized",
+                            },
+                            "Name": name,
+                            "Type": "Face",
+                        })
+
+        if region_list and first_face:
+            regions = {
+                "AppliedToDimensions": {
+                    "W": first_face.get("imageWidth"),
+                    "H": first_face.get("imageHeight"),
+                    "Unit": "pixel",
+                },
+                "RegionList": region_list,
+            }
+            args.append("-struct")
+            args.append(f"-RegionInfo={json.dumps(regions)}")
+            changes.append("FaceCoordinates")
+
     return args, changes
 
 
@@ -999,6 +1095,7 @@ def create_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--time", action="store_true", help="Sync timestamps.")
     parser.add_argument("--rating", action="store_true", help="Sync favorites/ratings.")
     parser.add_argument("--albums", action="store_true", help="Sync album information to XMP metadata.")
+    parser.add_argument("--face-coordinates", action="store_true", help="Sync face bounding boxes as MWG-RS regions to XMP metadata.")
     parser.add_argument("--dry-run", action="store_true", help="Simulation: log planned changes without writing.")
     parser.add_argument("--only-new", action="store_true", help="Skip files that already have ANY EXIF metadata.")
     parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR"], 
@@ -1023,6 +1120,10 @@ def parse_cli_args(argv: Optional[List[str]] = None) -> Tuple[argparse.Namespace
     # Add albums if explicitly enabled
     if args.albums:
         active_modes.append("albums")
+    
+    # Add face-coordinates if explicitly enabled
+    if args.face_coordinates:
+        active_modes.append("face-coordinates")
     
     if not active_modes:
         parser.error("No mode selected. Use --all or individual module flags.")

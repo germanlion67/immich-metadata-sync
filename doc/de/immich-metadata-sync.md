@@ -1,7 +1,7 @@
 # Immich Metadata Sync – Technische Dokumentation 
-*(Script v1.0 Final)*
+*(Script v1.2)*
 
-Diese Dokumentation beschreibt Aufbau, Konfiguration und Ablauf des Skripts `immich-ultra-sync.py` im Ordner `/immich-metadata-sync/script/`. Ziel ist es, Immich-Metadaten (Personen, GPS, Beschreibungen, Zeitstempel, Rating) verlustfrei in die Originaldateien zurückzuschreiben.
+Diese Dokumentation beschreibt Aufbau, Konfiguration und Ablauf des Skripts `immich-ultra-sync.py` im Ordner `/immich-metadata-sync/script/`. Ziel ist es, Immich-Metadaten (Personen, GPS, Beschreibungen, Zeitstempel, Rating, Alben, Gesichtskoordinaten) verlustfrei in die Originaldateien zurückzuschreiben.
 
 ## Architektur und Datenfluss
 1. **Konfiguration & Startparameter**  
@@ -9,7 +9,7 @@ Diese Dokumentation beschreibt Aufbau, Konfiguration und Ablauf des Skripts `imm
      - `IMMICH_INSTANCE_URL` (ohne abschließenden `/api`, wird intern ergänzt/fallback)  
      - `IMMICH_API_KEY`  
      - `PHOTO_DIR` (Standard `/library`, interner Mount mit Fotos)  
-   - CLI-Flags: `--all`, `--people`, `--gps`, `--caption`, `--time`, `--rating`, `--dry-run`, `--only-new`, `--help`.
+   - CLI-Flags: `--all`, `--people`, `--gps`, `--caption`, `--time`, `--rating`, `--albums`, `--face-coordinates`, `--dry-run`, `--only-new`, `--resume`, `--clear-checkpoint`, `--clear-album-cache`, `--help`.
 
 2. **Asset-Ermittlung**  
    - POST `/{api}/search/metadata` liefert Asset-Liste.  
@@ -20,11 +20,13 @@ Diese Dokumentation beschreibt Aufbau, Konfiguration und Ablauf des Skripts `imm
    - Existenzcheck verhindert Schreibversuch auf fehlende Dateien.
 
 4. **Exif-Argumente bauen** (`build_exif_args`)  
-   - People → `XMP:Subject`, `IPTC:Keywords`  
+   - People → `XMP:Subject`, `IPTC:Keywords`, `XMP-iptcExt:PersonInImage`  
    - GPS → `GPSLatitude`, `GPSLongitude`, `GPSAltitude`  
    - Caption → `XMP:Description`, `IPTC:Caption-Abstract`  
-   - Time → `DateTimeOriginal`, `CreateDate`  
-   - Rating → `Rating` (Immich-Favorit → `5`, sonst `0`)
+   - Time → `DateTimeOriginal`, `CreateDate`, `XMP:CreateDate`, `XMP-photoshop:DateCreated`  
+   - Rating → `Rating` (Immich-Favorit → `5`, sonst `0`)  
+   - Albums → `XMP-iptcExt:Event`, `XMP:HierarchicalSubject`, `EXIF:UserComment`  
+   - Face Coordinates → `RegionInfo` (MWG-RS Regionen mit Gesichtskoordinaten)
 
 5. **Ausführung**  
    - `--dry-run`: Nur Logging, kein Schreiben.  
@@ -54,6 +56,14 @@ Diese Dokumentation beschreibt Aufbau, Konfiguration und Ablauf des Skripts `imm
   ```bash
   python3 immich-ultra-sync.py --all --dry-run
   ```
+- Personen mit Gesichtskoordinaten:  
+  ```bash
+  python3 immich-ultra-sync.py --people --face-coordinates
+  ```
+- Alles inkl. Alben und Gesichtskoordinaten:  
+  ```bash
+  python3 immich-ultra-sync.py --all --albums --face-coordinates
+  ```
 
 ## Fehlersuche
 - **Kein API-Response**: Prüfe `IMMICH_INSTANCE_URL`, API-Key, Netzwerk; das Skript versucht `/api`- und Root-Pfad.  
@@ -67,8 +77,10 @@ Diese Dokumentation beschreibt Aufbau, Konfiguration und Ablauf des Skripts `imm
 - Timeout/Fehlertoleranz bei API-Calls; Script bricht nicht bei Einzel-Fehlern ab.  
 - Rating-Check minimiert unnötige Schreibzugriffe.
 
-## Änderungsprotokoll (Script v1.0 Final)
+## Änderungsprotokoll (Script v1.2)
 - Robustere API-Aufrufe mit Fallback `/api`.  
-- Module: People, GPS, Caption, Time, Rating.  
-- Smart-Skip für Ratings (`--only-new`).  
+- Module: People, GPS, Caption, Time, Rating, Albums, Face Coordinates (MWG-RS).  
+- Smart-Skip für alle Metadaten (`--only-new`).  
 - Logging erweitert (Start/Finish, Pfade, Fehler).  
+- Gesichtserkennungs-Koordinaten als MWG-RS-Regionen (opt-in via `--face-coordinates`).  
+- Album-Sync mit persistentem Cache und TTL.
