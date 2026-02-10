@@ -21,6 +21,9 @@ RUN useradd --create-home --shell /bin/bash app
 # Arbeitsverzeichnis setzen
 WORKDIR /app
 
+# Gib /app dem User app (für Schreibrechte auf Logs)
+RUN chown -R app:app /app
+
 # Kopiere das Haupt-Script aus dem Repository
 COPY script/immich-ultra-sync.py /app/immich-ultra-sync.py
 
@@ -34,8 +37,5 @@ USER app
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD python --version || exit 1
 
-# Standard-Command: Starte das Script
-# CMD ["python", "/app/immich-ultra-sync.py"]
-
-# Standard-Command: Verwende ENV für Args
-CMD sh -c "python /app/immich-ultra-sync.py ${ARGS:-'--help'}"
+# Standard-Command: Starte das Script mit Default-Args
+CMD ["python", "/app/immich-ultra-sync.py", "--all", "--dry-run"]
