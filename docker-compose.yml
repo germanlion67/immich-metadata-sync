@@ -8,8 +8,10 @@ services:
     restart: unless-stopped
     env_file:
       - .env  # Lädt Vars aus .env-Datei
+    depends_on:
+      immich-server: {}  # Warte auf Immich
     volumes:
-      - /path/to/your/photo/library:/library  # Mount deine Photo-Bibliothek
+      - /library:/library  # Mount deine Photo-Bibliothek
       - ./logs:/app/logs  # Optional: Für Logs persistieren
     healthcheck:
       test: ["CMD", "python", "--version"]  # Gleicher Check wie im Dockerfile
@@ -20,8 +22,7 @@ services:
     # Optional: Ports, wenn dein Script später einen Webserver hinzufügt
     # ports:
     #   - "8080:8080"
-  depends_on:
-    - immich-server  # Warte auf Immich
+
   
   immich-server:  # Füge Immich hinzu (passe Image und Config an)
     image: immich/server:latest  # Oder dein Immich-Image
