@@ -9,8 +9,12 @@ RUN apt-get update && apt-get install -y \
 # Runtime-Stage: Schlankes finales Image
 FROM python:3.11-slim AS runtime
 
-# Kopiere nur nötige Artefakte aus Builder-Stage
+# Kopiere ExifTool-Binary und Perl-Module aus Builder-Stage
 COPY --from=builder /usr/bin/exiftool /usr/bin/exiftool
+COPY --from=builder /usr/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu
+COPY --from=builder /usr/share/perl5 /usr/share/perl5
+# Optional: Kopiere weitere @INC-Pfade, falls nötig (z.B. /etc/perl)
+COPY --from=builder /etc/perl /etc/perl
 
 # Installiere Python-Abhängigkeiten (ohne Cache für Sicherheit)
 RUN pip install --no-cache-dir requests tqdm
