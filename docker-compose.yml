@@ -20,3 +20,16 @@ services:
     # Optional: Ports, wenn dein Script später einen Webserver hinzufügt
     # ports:
     #   - "8080:8080"
+  depends_on:
+    - immich-server  # Warte auf Immich
+  
+  immich-server:  # Füge Immich hinzu (passe Image und Config an)
+    image: immich/server:latest  # Oder dein Immich-Image
+    container_name: immich-server
+    ports:
+      - "2283:2283"
+    environment:
+      - IMMICH_VERSION=v2  # Passe an
+    volumes:
+      - /home/immich/immich-library:/usr/src/app/upload  # Passe an
+    restart: unless-stopped
