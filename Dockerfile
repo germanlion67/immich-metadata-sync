@@ -46,3 +46,6 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 # Standard-Command: Starte das Script mit Default-Args
 CMD ["python", "/app/immich-ultra-sync.py", "--all"]
+
+# Command: hält den Container am laufen für inbound Debuging and tests
+CMD ["sleep", "infinity"]
