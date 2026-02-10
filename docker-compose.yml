@@ -9,6 +9,8 @@ services:
     volumes:
       - /home/immich/immich-library/library:/app/library  # Mount deine Photo-Bibliothek
       - ./logs:/app/logs  # Optional: Für Logs persistieren
+    env_file:
+      - stack.env
     healthcheck:
       test: ["CMD", "python", "--version"]  # Gleicher Check wie im Dockerfile
       interval: 30s
