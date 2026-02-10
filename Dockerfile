@@ -17,7 +17,6 @@ RUN pip install --no-cache-dir requests tqdm
 
 # Erstelle non-root User für Sicherheit
 RUN useradd --create-home --shell /bin/bash app
-USER app
 
 # Arbeitsverzeichnis setzen
 WORKDIR /app
@@ -25,8 +24,11 @@ WORKDIR /app
 # Kopiere das Haupt-Script aus dem Repository
 COPY script/immich-ultra-sync.py /app/immich-ultra-sync.py
 
-# Mache das Script ausführbar
+# Mache das Script ausführbar (noch als root)
 RUN chmod +x /app/immich-ultra-sync.py
+
+# Jetzt non-root User setzen
+USER app
 
 # Optional: Healthcheck (prüft, ob Python verfügbar ist; passe an, wenn du einen echten Endpoint hast)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
