@@ -9,7 +9,7 @@ services:
     env_file:
       - .env  # Lädt Vars aus .env-Datei
     volumes:
-      - /home/immich/immich-library:/library  # Mount deine Photo-Bibliothek
+      - /usr/src/app/library:/library  # Mount deine Photo-Bibliothek
       - ./logs:/app/logs  # Optional: Für Logs persistieren
     healthcheck:
       test: ["CMD", "python", "--version"]  # Gleicher Check wie im Dockerfile
