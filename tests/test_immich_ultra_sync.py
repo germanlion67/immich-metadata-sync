@@ -491,5 +491,214 @@ class ConfigLoaderTests(ModuleLoaderMixin):
         self.assertEqual(config['IMMICH_PHOTO_DIR'], self.module.DEFAULT_PHOTO_DIR)
 
 
+class FaceCoordinatesTests(ModuleLoaderMixin):
+    def test_convert_bbox_to_mwg_rs_basic(self):
+        """Test basic bounding box to MWG-RS conversion."""
+        result = self.module.convert_bbox_to_mwg_rs(100, 200, 300, 400, 4000, 3000)
+        self.assertIsNotNone(result)
+        # Center X = (100 + 200/2) / 4000 = 200/4000 = 0.05
+        self.assertAlmostEqual(result["X"], 0.05, places=6)
+        # Center Y = (200 + 200/2) / 3000 = 300/3000 = 0.1
+        self.assertAlmostEqual(result["Y"], 0.1, places=6)
+        # W = 200/4000 = 0.05
+        self.assertAlmostEqual(result["W"], 0.05, places=6)
+        # H = 200/3000 ≈ 0.066667
+        self.assertAlmostEqual(result["H"], 0.066667, places=5)
+
+    def test_convert_bbox_to_mwg_rs_full_image(self):
+        """Test conversion covering the full image."""
+        result = self.module.convert_bbox_to_mwg_rs(0, 0, 4000, 3000, 4000, 3000)
+        self.assertIsNotNone(result)
+        self.assertAlmostEqual(result["X"], 0.5, places=6)
+        self.assertAlmostEqual(result["Y"], 0.5, places=6)
+        self.assertAlmostEqual(result["W"], 1.0, places=6)
+        self.assertAlmostEqual(result["H"], 1.0, places=6)
+
+    def test_convert_bbox_to_mwg_rs_invalid_dimensions(self):
+        """Test conversion with invalid image dimensions."""
+        self.assertIsNone(self.module.convert_bbox_to_mwg_rs(0, 0, 100, 100, 0, 0))
+        self.assertIsNone(self.module.convert_bbox_to_mwg_rs(0, 0, 100, 100, -1, 100))
+
+    def test_convert_bbox_to_mwg_rs_invalid_bbox(self):
+        """Test conversion with invalid bounding box (x2 <= x1)."""
+        self.assertIsNone(self.module.convert_bbox_to_mwg_rs(300, 200, 100, 400, 4000, 3000))
+        self.assertIsNone(self.module.convert_bbox_to_mwg_rs(100, 400, 300, 200, 4000, 3000))
+
+    def test_build_exif_args_face_coordinates(self):
+        """Test that face coordinates generate MWG-RS region args."""
+        import json
+        asset = {"isFavorite": False}
+        details = {
+            "exifInfo": {},
+            "people": [
+                {
+                    "name": "Alice",
+                    "faces": [
+                        {
+                            "boundingBoxX1": 100,
+                            "boundingBoxY1": 200,
+                            "boundingBoxX2": 300,
+                            "boundingBoxY2": 400,
+                            "imageWidth": 4000,
+                            "imageHeight": 3000,
+                        }
+                    ],
+                }
+            ],
+        }
+
+        args, changes = self.module.build_exif_args(asset, details, ["face-coordinates"])
+
+        self.assertIn("FaceCoordinates", changes)
+        self.assertIn("-struct", args)
+        region_arg = next((a for a in args if a.startswith("-RegionInfo=")), None)
+        self.assertIsNotNone(region_arg)
+
+        region_json = json.loads(region_arg.split("=", 1)[1])
+        self.assertEqual(region_json["AppliedToDimensions"]["W"], 4000)
+        self.assertEqual(region_json["AppliedToDimensions"]["H"], 3000)
+        self.assertEqual(len(region_json["RegionList"]), 1)
+        self.assertEqual(region_json["RegionList"][0]["Name"], "Alice")
+        self.assertEqual(region_json["RegionList"][0]["Type"], "Face")
+
+    def test_build_exif_args_face_coordinates_multiple_people(self):
+        """Test MWG-RS with multiple people."""
+        import json
+        asset = {"isFavorite": False}
+        details = {
+            "exifInfo": {},
+            "people": [
+                {
+                    "name": "Alice",
+                    "faces": [
+                        {
+                            "boundingBoxX1": 100,
+                            "boundingBoxY1": 200,
+                            "boundingBoxX2": 300,
+                            "boundingBoxY2": 400,
+                            "imageWidth": 4000,
+                            "imageHeight": 3000,
+                        }
+                    ],
+                },
+                {
+                    "name": "Bob",
+                    "faces": [
+                        {
+                            "boundingBoxX1": 500,
+                            "boundingBoxY1": 600,
+                            "boundingBoxX2": 700,
+                            "boundingBoxY2": 800,
+                            "imageWidth": 4000,
+                            "imageHeight": 3000,
+                        }
+                    ],
+                },
+            ],
+        }
+
+        args, changes = self.module.build_exif_args(asset, details, ["face-coordinates"])
+
+        self.assertIn("FaceCoordinates", changes)
+        region_arg = next(a for a in args if a.startswith("-RegionInfo="))
+        region_json = json.loads(region_arg.split("=", 1)[1])
+        self.assertEqual(len(region_json["RegionList"]), 2)
+        names = [r["Name"] for r in region_json["RegionList"]]
+        self.assertIn("Alice", names)
+        self.assertIn("Bob", names)
+
+    def test_build_exif_args_face_coordinates_no_faces(self):
+        """Test that no args are generated when people have no face data."""
+        asset = {"isFavorite": False}
+        details = {
+            "exifInfo": {},
+            "people": [{"name": "Alice"}],  # No faces array
+        }
+
+        args, changes = self.module.build_exif_args(asset, details, ["face-coordinates"])
+        self.assertNotIn("FaceCoordinates", changes)
+        self.assertEqual(args, [])
+
+    def test_build_exif_args_face_coordinates_unnamed_person(self):
+        """Test that unnamed persons are skipped."""
+        asset = {"isFavorite": False}
+        details = {
+            "exifInfo": {},
+            "people": [
+                {
+                    "name": "",
+                    "faces": [
+                        {
+                            "boundingBoxX1": 100,
+                            "boundingBoxY1": 200,
+                            "boundingBoxX2": 300,
+                            "boundingBoxY2": 400,
+                            "imageWidth": 4000,
+                            "imageHeight": 3000,
+                        }
+                    ],
+                }
+            ],
+        }
+
+        args, changes = self.module.build_exif_args(asset, details, ["face-coordinates"])
+        self.assertNotIn("FaceCoordinates", changes)
+        self.assertEqual(args, [])
+
+    def test_normalize_exif_value_regioninfo(self):
+        """Test normalization of RegionInfo for comparison."""
+        import json
+        region = {
+            "AppliedToDimensions": {"W": 4000, "H": 3000, "Unit": "pixel"},
+            "RegionList": [
+                {
+                    "Area": {"X": 0.05, "Y": 0.1, "W": 0.05, "H": 0.066667, "Unit": "normalized"},
+                    "Name": "Alice",
+                    "Type": "Face",
+                }
+            ],
+        }
+        value = json.dumps(region)
+        result = self.module.normalize_exif_value(value, "RegionInfo")
+        self.assertIn("Alice:", result)
+        self.assertIn("0.05", result)
+
+    def test_normalize_exif_value_regioninfo_sorted(self):
+        """Test that region normalization sorts by name."""
+        import json
+        region = {
+            "RegionList": [
+                {"Area": {"X": 0.5, "Y": 0.5, "W": 0.1, "H": 0.1}, "Name": "Zoe"},
+                {"Area": {"X": 0.3, "Y": 0.3, "W": 0.1, "H": 0.1}, "Name": "Alice"},
+            ]
+        }
+        value = json.dumps(region)
+        result = self.module.normalize_exif_value(value, "RegionInfo")
+        # Alice should come before Zoe
+        alice_pos = result.index("Alice")
+        zoe_pos = result.index("Zoe")
+        self.assertLess(alice_pos, zoe_pos)
+
+    def test_face_coordinates_cli_flag(self):
+        """Test that --face-coordinates flag is parsed correctly."""
+        parsed, modes = self.module.parse_cli_args(["--face-coordinates"])
+        self.assertTrue(parsed.face_coordinates)
+        self.assertIn("face-coordinates", modes)
+
+    def test_face_coordinates_not_in_all(self):
+        """Test that --all does NOT include face-coordinates."""
+        parsed, modes = self.module.parse_cli_args(["--all"])
+        self.assertNotIn("face-coordinates", modes)
+
+    def test_all_with_face_coordinates_flag(self):
+        """Test --all combined with --face-coordinates."""
+        parsed, modes = self.module.parse_cli_args(["--all", "--face-coordinates"])
+        self.assertIn("face-coordinates", modes)
+        self.assertEqual(
+            set(modes),
+            {"people", "gps", "caption", "time", "rating", "face-coordinates"},
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
