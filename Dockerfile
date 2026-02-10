@@ -41,5 +41,8 @@ USER app
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD python --version || exit 1
 
+# Standard-Command: Starte das Script mit Default-Args (Simulation)
+# CMD ["python", "/app/immich-ultra-sync.py", "--all", "--dry-run"]
+
 # Standard-Command: Starte das Script mit Default-Args
-CMD ["python", "/app/immich-ultra-sync.py", "--all", "--dry-run"]
+CMD ["python", "/app/immich-ultra-sync.py", "--all"]
