@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  immich-metadata-sync:
+    build: .  # Verwendet das lokale Dockerfile
+    container_name: immich-metadata-sync
+    user: app  # Non-root User aus dem Dockerfile
+    restart: unless-stopped
+    environment:
+      - IMMICH_URL=http://your-immich-server:2283  # Passe an deine Immich-Instanz an
+      - API_KEY=your-api-key  # Ersetze mit deinem API-Key
+      # Weitere Env-Variablen aus deinem Script hinzufügen (z.B. für Logs, Batch-Size)
+    volumes:
+      - /path/to/your/photo/library:/library  # Mount deine Photo-Bibliothek
+      - ./logs:/app/logs  # Optional: Für Logs persistieren
+    healthcheck:
+      test: ["CMD", "python", "--version"]  # Gleicher Check wie im Dockerfile
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    # Optional: Ports, wenn dein Script später einen Webserver hinzufügt
+    # ports:
+    #   - "8080:8080"
