@@ -496,13 +496,13 @@ class FaceCoordinatesTests(ModuleLoaderMixin):
         """Test basic bounding box to MWG-RS conversion."""
         result = self.module.convert_bbox_to_mwg_rs(100, 200, 300, 400, 4000, 3000)
         self.assertIsNotNone(result)
-        # Center X = (100 + 200/2) / 4000 = 200/4000 = 0.05
+        # Center X = (100 + 200 / 2) / 4000 = 200 / 4000 = 0.05
         self.assertAlmostEqual(result["X"], 0.05, places=6)
-        # Center Y = (200 + 200/2) / 3000 = 300/3000 = 0.1
+        # Center Y = (200 + 200 / 2) / 3000 = 300 / 3000 = 0.1
         self.assertAlmostEqual(result["Y"], 0.1, places=6)
-        # W = 200/4000 = 0.05
+        # W = 200 / 4000 = 0.05
         self.assertAlmostEqual(result["W"], 0.05, places=6)
-        # H = 200/3000 ≈ 0.066667
+        # H = 200 / 3000 ≈ 0.066667
         self.assertAlmostEqual(result["H"], 0.066667, places=5)
 
     def test_convert_bbox_to_mwg_rs_full_image(self):
