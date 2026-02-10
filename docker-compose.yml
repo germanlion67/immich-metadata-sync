@@ -7,7 +7,7 @@ services:
     user: app  # Non-root User aus dem Dockerfile
     # restart: unless-stopped # inaktiv=Schleife läuft genau 1x / aktiv=läuft permanant als Schleife (NUR für TEST-Zwecke)
     volumes:
-      - /home/immich/immich-library/library:/app/library  # Mount deine Photo-Bibliothek
+      - /home/immich/immich-library/library:/library  # Mount deine Photo-Bibliothek
       - ./logs:/app/logs  # Optional: Für Logs persistieren
     env_file:
       - stack.env
