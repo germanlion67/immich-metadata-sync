@@ -35,4 +35,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD python --version || exit 1
 
 # Standard-Command: Starte das Script
-CMD ["python", "/app/immich-ultra-sync.py"]
+# CMD ["python", "/app/immich-ultra-sync.py"]
+
+# Standard-Command: Verwende ENV für Args
+CMD sh -c "python /app/immich-ultra-sync.py ${ARGS:-'--help'}"
