@@ -5,7 +5,7 @@ services:
     image: germanlion67/immich-metadata-sync:latest
     container_name: immich-metadata-sync-test
     volumes:
-      - /home/immich/immich-library/library:/app/library
+      - /home/immich/immich-library/library:/library
       - ./logs:/app/logs
     # If you don't have stack.env, comment out the next line with #
     env_file:

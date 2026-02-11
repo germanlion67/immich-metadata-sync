@@ -87,7 +87,7 @@ The following environment variables are required or recommended:
 | Variable | Required | Description | Default |
 | --- | --- | --- | --- |
 | `IMMICH_INSTANCE_URL` | **Yes** | URL to your Immich instance (e.g., `http://immich:2283`) | `""` |
-| `IMMICH_API_KEY` | **Yes** | API key from Immich user settings | `None` |
+| `IMMICH_API_KEY` | **Yes** | API key from Immich user settings | (required) |
 | `PHOTO_DIR` | No | Path where the photo library is mounted inside the container | `/library` |
 | `TZ` | No | Timezone for correct date handling | `Europe/Berlin` |
 | `LOG_FILE` | No | Path to the log file | `/app/logs/immich_ultra_sync.txt` |
