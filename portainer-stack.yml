@@ -7,7 +7,7 @@ services:
     volumes:
       - /home/immich/immich-library/library:/app/library
       - ./logs:/app/logs
-    # Falls du keine stack.env hast, kommentiere die nächste Zeile mit # aus
+    # If you don't have stack.env, comment out the next line with #
     env_file:
       - stack.env
     healthcheck:
@@ -16,6 +16,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 5s
-    # Das Docker Image enthält bereits alle Dependencies und Scripts
-    # Für andere Befehle, überschreibe das CMD:
+    # The Docker image already contains all dependencies and scripts
+    # To run different commands, override the CMD:
     # command: ["python", "/app/immich-ultra-sync.py", "--all", "--only-new"]

@@ -45,7 +45,7 @@ Run the container directly with Docker:
 ```bash
 docker run -d \
   --name immich-metadata-sync \
-  -v /path/to/your/immich-library:/app/library \
+  -v /path/to/your/immich-library:/library \
   -v /path/to/logs:/app/logs \
   -e IMMICH_INSTANCE_URL=http://your-immich-instance:2283 \
   -e IMMICH_API_KEY=your-api-key-here \
@@ -65,7 +65,7 @@ services:
     image: germanlion67/immich-metadata-sync:latest
     container_name: immich-metadata-sync
     volumes:
-      - /path/to/your/immich-library:/app/library
+      - /path/to/your/immich-library:/library
       - ./logs:/app/logs
     environment:
       - IMMICH_INSTANCE_URL=http://your-immich-instance:2283
