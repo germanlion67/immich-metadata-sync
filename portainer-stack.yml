@@ -8,8 +8,8 @@ services:
       - /home/immich/immich-library/library:/app/library
       - ./logs:/app/logs
     # Falls du keine stack.env hast, kommentiere die nächste Zeile mit # aus
-    # env_file:
-    #   - stack.env
+    env_file:
+      - stack.env
     command: |
       sh -c "
       apt-get update && apt-get install -y exiftool curl
