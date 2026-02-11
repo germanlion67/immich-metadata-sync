@@ -790,19 +790,20 @@ def get_current_exif_values(full_path: str, active_modes: List[str]) -> Dict[str
             # Try full tag name first, then short name (without namespace)
             tag_short = tag.split(":")[-1]
             value = file_data.get(tag, file_data.get(tag_short))
-                if value is not None and value != "" and value != "-":
-                    # Handle structs (RegionInfo is a dict)
-                    if isinstance(value, dict):
-                        values[tag] = json.dumps(value, sort_keys=True)
-                    # Handle arrays (Subject is an array)
-                    elif isinstance(value, list):
-                        # Join array elements, or take first element if it's already comma-separated
-                        if len(value) == 1:
-                            values[tag] = str(value[0])
-                        else:
-                            values[tag] = ",".join(str(v) for v in value)
+            
+            if value is not None and value != "" and value != "-":
+                # Handle structs (RegionInfo is a dict)
+                if isinstance(value, dict):
+                    values[tag] = json.dumps(value, sort_keys=True)
+                # Handle arrays (Subject is an array)
+                elif isinstance(value, list):
+                    # Join array elements, or take first element if it's already comma-separated
+                    if len(value) == 1:
+                        values[tag] = str(value[0])
                     else:
-                        values[tag] = str(value)
+                        values[tag] = ",".join(str(v) for v in value)
+                else:
+                    values[tag] = str(value)
         
         return values
     except (subprocess.TimeoutExpired, subprocess.CalledProcessError, subprocess.SubprocessError, ValueError, KeyError):
