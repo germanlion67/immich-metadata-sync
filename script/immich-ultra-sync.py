@@ -119,7 +119,7 @@ class ExifToolHelper:
         )
     
     def execute(self, args: List[str]) -> tuple:
-        """Execute ExifTool command."""
+        """Execute ExifTool command and return (stdout, stderr)."""
         if not self.process:
             self.start()
         
@@ -130,10 +130,12 @@ class ExifToolHelper:
         output = []
         while True:
             line = self.process.stdout.readline()
-            if line.strip() == "{ready}":
+            if not line or line.strip() == "{ready}":
                 break
             output.append(line)
         
+        # Optional: Hier könnte man stderr separat auslesen, 
+        # aber meistens reicht stdout für die Fehlerdiagnose bei ExifTool
         return "".join(output), ""
     
     def close(self):
@@ -757,7 +759,7 @@ def get_current_exif_values(full_path: str, active_modes: List[str]) -> Dict[str
     if "albums" in active_modes:
         tags_to_read.extend(["Event", "HierarchicalSubject", "UserComment"])
     if "face-coordinates" in active_modes:
-        tags_to_read.extend(["RegionInfo"])
+        tags_to_read.extend(["XMP-mwg-rs:RegionInfo"]) # Expliziter Namespace
     
     if not tags_to_read:
         return {}
@@ -1037,47 +1039,42 @@ def build_exif_args(
     # 7. FACE COORDINATES SYNC (MWG-RS regions)
     if "face-coordinates" in active_modes:
         people_data = details.get("people", [])
-        region_list = []
-        first_face = None
+        region_found = False
+        
+        # Zuerst bestehende Regionen löschen, um sauber neu aufzubauen
+        args.append("-XMP-mwg-rs:RegionInfo=")
+        
         for person in people_data:
             name = person.get("name")
             if not name:
                 continue
             for face in person.get("faces", []):
-                x1 = face.get("boundingBoxX1")
-                y1 = face.get("boundingBoxY1")
-                x2 = face.get("boundingBoxX2")
-                y2 = face.get("boundingBoxY2")
-                img_w = face.get("imageWidth")
-                img_h = face.get("imageHeight")
+                x1, y1 = face.get("boundingBoxX1"), face.get("boundingBoxY1")
+                x2, y2 = face.get("boundingBoxX2"), face.get("boundingBoxY2")
+                img_w, img_h = face.get("imageWidth"), face.get("imageHeight")
+                
                 if all(v is not None for v in [x1, y1, x2, y2, img_w, img_h]):
                     area = convert_bbox_to_mwg_rs(x1, y1, x2, y2, img_w, img_h)
                     if area:
-                        if first_face is None:
-                            first_face = face
-                        region_list.append({
-                            "Area": {
-                                "X": area["X"],
-                                "Y": area["Y"],
-                                "W": area["W"],
-                                "H": area["H"],
-                                "Unit": "normalized",
-                            },
-                            "Name": name,
-                            "Type": "Face",
-                        })
+                        region_found = True
+                        # Flache Syntax für zuverlässiges Schreiben (+= fügt zur Liste hinzu)
+                        args.append(f"-XMP-mwg-rs:RegionName+={name}")
+                        args.append("-XMP-mwg-rs:RegionType+=Face")
+                        args.append(f"-XMP-mwg-rs:RegionAreaX+={area['X']}")
+                        args.append(f"-XMP-mwg-rs:RegionAreaY+={area['Y']}")
+                        args.append(f"-XMP-mwg-rs:RegionAreaW+={area['W']}")
+                        args.append(f"-XMP-mwg-rs:RegionAreaH+={area['H']}")
+                        args.append("-XMP-mwg-rs:RegionAreaUnit+=normalized")
 
-        if region_list and first_face:
-            regions = {
-                "AppliedToDimensions": {
-                    "W": first_face.get("imageWidth"),
-                    "H": first_face.get("imageHeight"),
-                    "Unit": "pixel",
-                },
-                "RegionList": region_list,
-            }
-            args.append("-struct")
-            args.append(f"-RegionInfo={json.dumps(regions)}")
+        if region_found:
+            # Die Dimensionen gelten für die gesamte Region-Struktur
+            first_face_data = next((p.get("faces", [{}])[0] for p in people_data if p.get("faces")), {})
+            w = first_face_data.get("imageWidth")
+            h = first_face_data.get("imageHeight")
+            if w and h:
+                args.append(f"-XMP-mwg-rs:RegionAppliedToDimensionsW={w}")
+                args.append(f"-XMP-mwg-rs:RegionAppliedToDimensionsH={h}")
+                args.append("-XMP-mwg-rs:RegionAppliedToDimensionsUnit=pixel")
             changes.append("FaceCoordinates")
 
     return args, changes
