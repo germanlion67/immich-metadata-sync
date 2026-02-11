@@ -17,7 +17,6 @@ services:
       mkdir -p /app
       curl -L -o /app/script.py https://raw.githubusercontent.com/germanlion67/immich-metadata-sync/main/script/immich-ultra-sync.py
       sed -i \"s/startswith('\\\\')/startswith('\\\\\\\\')/g\" /app/script.py
-      cd app
       # python /app/script.py --all
       echo 'Fertig. Halte Container offen für Portainer-Logs.'
       sleep infinity
