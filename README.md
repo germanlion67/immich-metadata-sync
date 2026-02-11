@@ -1,5 +1,5 @@
 # 📸 IMMICH ULTRA-SYNC
-*v1.1*
+*v1.3*
 
 ![Docker Pulls](https://img.shields.io/docker/pulls/germanlion67/immich-metadata-sync)
 
