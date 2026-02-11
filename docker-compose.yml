@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   immich-metadata-sync:
-    build: .  # Verwendet das lokale Dockerfile
+    image: germanlion67/immich-metadata-sync:latest
     container_name: immich-metadata-sync
     user: app  # Non-root User aus dem Dockerfile
     # restart: unless-stopped # inaktiv=Schleife läuft genau 1x / aktiv=läuft permanant als Schleife (NUR für TEST-Zwecke)
