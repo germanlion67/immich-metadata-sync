@@ -1,5 +1,5 @@
 # 📸 IMMICH ULTRA-SYNC
-*v1.2*
+*v1.1*
 
 Syncing Immich metadata back into your original media files.
 
