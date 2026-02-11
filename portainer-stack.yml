@@ -1,49 +1,33 @@
-# ---------------------------------------------------------------------
-# PORTAINER STANDALONE DOCKERFILE
-# Lädt das Script automatisch von GitHub und behebt die "Escape-Falle"
-# ---------------------------------------------------------------------
+version: '3.8'
 
-FROM python:3.11-slim
-
-# 1. System-Tools und Abhängigkeiten installieren
-# Wir brauchen 'curl' zum Herunterladen des Scripts
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    exiftool \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# 2. Python-Bibliotheken installieren
-RUN pip install --no-cache-dir requests tqdm
-
-# 3. Arbeitsverzeichnis und User erstellen
-RUN useradd --create-home --shell /bin/bash app
-WORKDIR /app
-
-# ---------------------------------------------------------------------
-# WEG 3: SCRIPT DIREKT VON GITHUB LADEN
-# ---------------------------------------------------------------------
-# Hier ziehen wir die "Raw"-Version deiner Datei direkt in das Image
-RUN curl -L -o /app/immich-ultra-sync.py \
-    https://raw.githubusercontent.com/germanlion67/immich-metadata-sync/main/script/immich-ultra-sync.py
-
-# ---------------------------------------------------------------------
-# FIX DER ESCAPE-FALLE (SyntaxError Zeile 1132)
-# ---------------------------------------------------------------------
-# Wir korrigieren die fehlerhafte Zeile im Python-Script direkt per sed:
-# Sucht nach: part.startswith('\')
-# Ersetzt durch: part.startswith('\\')
-RUN sed -i "s/part.startswith('\\\\')/part.startswith('\\\\\\\\')/g" /app/immich-ultra-sync.py
-
-# 4. Berechtigungen anpassen
-RUN chown -R app:app /app && chmod +x /app/immich-ultra-sync.py
-
-# 5. Non-root User setzen
-USER app
-
-# Healthcheck
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD python --version || exit 1
-
-# 6. Start-Befehl für Testzwecke in Portainer
-# Führt das Script aus und hält den Container danach offen für Debugging/Logs
-CMD ["/bin/bash", "-c", "python /app/immich-ultra-sync.py --all; echo 'Fertig oder Fehler. Halte Container offen...'; sleep infinity"]
+services:
+  immich-metadata-sync:
+    image: python:3.11-slim
+    container_name: immich-metadata-sync-test
+    volumes:
+      - /home/immich/immich-library/library:/app/library
+      - ./logs:/app/logs
+    env_file:
+      - stack.env
+    # Der Befehl erledigt alles: Installation, Download, Fix und Start
+    command: >
+      sh -c "
+      echo '--- 1. Installiere System-Tools ---' &&
+      apt-get update && apt-get install -y exiftool curl &&
+      echo '--- 2. Installiere Python-Libs ---' &&
+      pip install --no-cache-dir requests tqdm &&
+      mkdir -p /app && cd /app &&
+      echo '--- 3. Lade Script von GitHub ---' &&
+      curl -L -o immich-ultra-sync.py https://raw.githubusercontent.com/germanlion67/immich-metadata-sync/main/script/immich-ultra-sync.py &&
+      echo '--- 4. Fixe Escape-Falle (Zeile 1132) ---' &&
+      sed -i \"s/part.startswith('\\\\')/part.startswith('\\\\\\\\')/g\" immich-ultra-sync.py &&
+      echo '--- 5. Starte Script ---' &&
+      python immich-ultra-sync.py --all;
+      echo '--- Script beendet. Halte Container für Debugging offen ---';
+      sleep infinity
+      "
+    healthcheck:
+      test: ["CMD", "python", "--version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
