@@ -30,7 +30,7 @@ RUN chown -R app:app /app
 
 # Kopiere das Haupt-Script und Healthcheck-Script aus dem Repository
 COPY script/immich-ultra-sync.py /app/immich-ultra-sync.py
-COPY healthcheck.py /app/healthcheck.py
+COPY script/healthcheck.py /app/healthcheck.py
 
 # Mache die Scripts ausführbar (noch als root)
 RUN chmod +x /app/immich-ultra-sync.py /app/healthcheck.py
