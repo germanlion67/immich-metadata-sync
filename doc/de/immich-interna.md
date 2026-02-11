@@ -22,3 +22,12 @@ Wichtige Besonderheiten:
 - **Zeitzonen:** Immich beachtet vorhandene Offset-Informationen (z. B. OffsetTimeOriginal). Fehlen diese, wird oft die Serverzeit oder eine in der .env-Datei konfigurierte Zeitzone angenommen.
 - **Sidecar-Dateien:** Falls du .xmp-Dateien (z. B. aus Lightroom oder DigiKam) mit hochlädst, werden diese ebenfalls zur Bestimmung des korrekten Datums herangezogen.
 - **Manuelle Korrektur:** Du kannst das Datum jedes Assets direkt in der Immich Web-Oberfläche oder App über das „Info“-Symbol (i) und dann „Datum bearbeiten“ manuell anpassen.
+
+**Zu Testzwecke** kann via Portainer ein "immich-metadata-sync-test" Container erstellt werden. Dies geschiet am einfachsten als Stack mit Eingabe über Web-Gui mit dieser [Compose-Datei](../../portainer-stack.yml). Es müssen dann nur noch diese Variablen gesetzt werden.
+```
+IMMICH_INSTANCE_URL=http://Immich-Instanz.de:2283
+IMMICH_API_KEY=xxxxxxeigener API Keyxxxxxxx    //Hinweis: über Kontoeinstellungen / API-Schlüssel / Neuer API-Schlüssel erzeugen
+LOG_FILE=/app/logs/immich_ultra_sync.txt
+IMMICH_PHOTO_DIR=/app/library
+IMMICH_PATH_SEGMENTS=4
+```
