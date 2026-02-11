@@ -1,7 +1,18 @@
 # 📸 IMMICH ULTRA-SYNC
-*v1.1*
+*v1.3*
+
+![Docker Pulls](https://img.shields.io/docker/pulls/germanlion67/immich-metadata-sync)
 
 Syncing Immich metadata back into your original media files.
+
+## 🐳 Docker Hub
+
+The pre-built Docker image is available on Docker Hub: [germanlion67/immich-metadata-sync](https://hub.docker.com/r/germanlion67/immich-metadata-sync)
+
+**Pull the image:**
+```bash
+docker pull germanlion67/immich-metadata-sync:latest
+```
 
 ## What this script does
 `immich-ultra-sync.py` connects to your Immich instance with an API key, fetches asset metadata, maps Immich paths to the mounted library, and writes values into EXIF/XMP:
@@ -24,6 +35,65 @@ The `--only-new` mode compares desired EXIF values with what is already on disk 
    python3 immich-ultra-sync.py --all --only-new
    ```
 4. Trigger an “Offline Assets Scan” in Immich to re-index updated files.
+
+## 🚀 Usage Examples
+
+### Using Docker Run
+
+Run the container directly with Docker:
+
+```bash
+docker run -d \
+  --name immich-metadata-sync \
+  -v /path/to/your/immich-library:/library \
+  -v /path/to/logs:/app/logs \
+  -e IMMICH_INSTANCE_URL=http://your-immich-instance:2283 \
+  -e IMMICH_API_KEY=your-api-key-here \
+  -e TZ=Europe/Berlin \
+  germanlion67/immich-metadata-sync:latest
+```
+
+### Using Docker Compose
+
+Create a `docker-compose.yml` file:
+
+```yaml
+version: '3.8'
+
+services:
+  immich-metadata-sync:
+    image: germanlion67/immich-metadata-sync:latest
+    container_name: immich-metadata-sync
+    volumes:
+      - /path/to/your/immich-library:/library
+      - ./logs:/app/logs
+    environment:
+      - IMMICH_INSTANCE_URL=http://your-immich-instance:2283
+      - IMMICH_API_KEY=your-api-key-here
+      - TZ=Europe/Berlin
+      - LOG_FILE=/app/logs/immich_ultra_sync.txt
+    restart: unless-stopped
+```
+
+Then run:
+```bash
+docker-compose up -d
+```
+
+### Environment Variables
+
+The following environment variables are required or recommended:
+
+| Variable | Required | Description | Default |
+| --- | --- | --- | --- |
+| `IMMICH_INSTANCE_URL` | **Yes** | URL to your Immich instance (e.g., `http://immich:2283`) | - |
+| `IMMICH_API_KEY` | **Yes** | API key from Immich user settings | - |
+| `PHOTO_DIR` | No | Path where the photo library is mounted inside the container | `/library` |
+| `TZ` | No | Timezone for correct date handling | `Europe/Berlin` |
+| `LOG_FILE` | No | Path to the log file | `/app/logs/immich_ultra_sync.txt` |
+| `CAPTION_MAX_LEN` | No | Max length for captions before truncation | `2000` |
+| `IMMICH_ALBUM_CACHE_TTL` | No | Album cache lifetime in seconds | `86400` (24 hours) |
+| `IMMICH_ALBUM_CACHE_MAX_STALE` | No | Maximum age for stale cache fallback in seconds | `604800` (7 days) |
 
 ## Album Synchronization
 The `--albums` flag enables syncing of Immich album assignments into XMP metadata fields. This allows you to preserve your album organization when exporting photos or using other tools that support XMP metadata.

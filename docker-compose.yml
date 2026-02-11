@@ -2,22 +2,22 @@ version: '3.8'
 
 services:
   immich-metadata-sync:
-    build: .  # Verwendet das lokale Dockerfile
+    image: germanlion67/immich-metadata-sync:latest
     container_name: immich-metadata-sync
-    user: app  # Non-root User aus dem Dockerfile
-    # restart: unless-stopped # inaktiv=Schleife läuft genau 1x / aktiv=läuft permanant als Schleife (NUR für TEST-Zwecke)
+    user: app  # Non-root user from Dockerfile
+    # restart: unless-stopped # inactive=loop runs exactly 1x / active=runs permanently as a loop (FOR TEST PURPOSES ONLY)
     volumes:
-      - /home/immich/immich-library/library:/app/library  # Mount deine Photo-Bibliothek
-      - ./logs:/app/logs  # Optional: Für Logs persistieren
+      - /home/immich/immich-library/library:/library  # Mount your photo library
+      - ./logs:/app/logs  # Optional: Persist logs
     env_file:
       - stack.env
     healthcheck:
-      test: ["CMD", "python", "--version"]  # Gleicher Check wie im Dockerfile
+      test: ["CMD", "python", "--version"]  # Same check as in Dockerfile
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
-    # Optional: Ports, wenn dein Script später einen Webserver hinzufügt
+    # Optional: Ports if your script later adds a web server
     # ports:
     #   - "8080:8080"
 
