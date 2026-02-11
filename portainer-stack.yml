@@ -7,27 +7,17 @@ services:
     volumes:
       - /home/immich/immich-library/library:/app/library
       - ./logs:/app/logs
-    env_file:
-      - stack.env
-    # Der Befehl erledigt alles: Installation, Download, Fix und Start
-    command: >
+    # Falls du keine stack.env hast, kommentiere die nächste Zeile mit # aus
+    # env_file:
+    #   - stack.env
+    command: |
       sh -c "
-      echo '--- 1. Installiere System-Tools ---' &&
-      apt-get update && apt-get install -y exiftool curl &&
-      echo '--- 2. Installiere Python-Libs ---' &&
-      pip install --no-cache-dir requests tqdm &&
-      mkdir -p /app && cd /app &&
-      echo '--- 3. Lade Script von GitHub ---' &&
-      curl -L -o immich-ultra-sync.py https://raw.githubusercontent.com/germanlion67/immich-metadata-sync/main/script/immich-ultra-sync.py &&
-      echo '--- 4. Fixe Escape-Falle (Zeile 1132) ---' &&
-      sed -i \"s/part.startswith('\\\\')/part.startswith('\\\\\\\\')/g\" immich-ultra-sync.py &&
-      echo '--- 5. Starte Script ---' &&
-      python immich-ultra-sync.py --all;
-      echo '--- Script beendet. Halte Container für Debugging offen ---';
+      apt-get update && apt-get install -y exiftool curl
+      pip install --no-cache-dir requests tqdm
+      mkdir -p /app
+      curl -L -o /app/script.py https://raw.githubusercontent.com/germanlion67/immich-metadata-sync/main/script/immich-ultra-sync.py
+      sed -i \"s/startswith('\\\\')/startswith('\\\\\\\\')/g\" /app/script.py
+      python /app/script.py --all
+      echo 'Fertig. Halte Container offen für Portainer-Logs.'
       sleep infinity
       "
-    healthcheck:
-      test: ["CMD", "python", "--version"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
