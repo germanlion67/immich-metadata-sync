@@ -1,40 +1,49 @@
-# Dockerfile optimiert für Portainer Testumgebung
-# Behebt den SyntaxError (Escape-Falle) in immich-ultra-sync.py
+# ---------------------------------------------------------------------
+# PORTAINER STANDALONE DOCKERFILE
+# Lädt das Script automatisch von GitHub und behebt die "Escape-Falle"
+# ---------------------------------------------------------------------
 
 FROM python:3.11-slim
 
-# 1. System-Abhängigkeiten installieren
-# Wir installieren exiftool direkt, um Pfad-Probleme beim manuellen Kopieren zu vermeiden
+# 1. System-Tools und Abhängigkeiten installieren
+# Wir brauchen 'curl' zum Herunterladen des Scripts
 RUN apt-get update && apt-get install -y --no-install-recommends \
     exiftool \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. Python-Abhängigkeiten
+# 2. Python-Bibliotheken installieren
 RUN pip install --no-cache-dir requests tqdm
 
-# 3. Benutzer und Arbeitsverzeichnis einrichten
+# 3. Arbeitsverzeichnis und User erstellen
 RUN useradd --create-home --shell /bin/bash app
 WORKDIR /app
 
-# 4. Script kopieren
-COPY script/immich-ultra-sync.py /app/immich-ultra-sync.py
+# ---------------------------------------------------------------------
+# WEG 3: SCRIPT DIREKT VON GITHUB LADEN
+# ---------------------------------------------------------------------
+# Hier ziehen wir die "Raw"-Version deiner Datei direkt in das Image
+RUN curl -L -o /app/immich-ultra-sync.py \
+    https://raw.githubusercontent.com/germanlion67/immich-metadata-sync/main/script/immich-ultra-sync.py
 
-# 5. FIX DER ESCAPE-FALLE (Zeile 1132)
-# Sucht nach .startswith('\') und ersetzt es durch .startswith('\\')
-# Dies verhindert den "unterminated string literal" SyntaxError
+# ---------------------------------------------------------------------
+# FIX DER ESCAPE-FALLE (SyntaxError Zeile 1132)
+# ---------------------------------------------------------------------
+# Wir korrigieren die fehlerhafte Zeile im Python-Script direkt per sed:
+# Sucht nach: part.startswith('\')
+# Ersetzt durch: part.startswith('\\')
 RUN sed -i "s/part.startswith('\\\\')/part.startswith('\\\\\\\\')/g" /app/immich-ultra-sync.py
 
-# 6. Berechtigungen setzen
+# 4. Berechtigungen anpassen
 RUN chown -R app:app /app && chmod +x /app/immich-ultra-sync.py
 
-# 7. Non-root User setzen
+# 5. Non-root User setzen
 USER app
 
-# Healthcheck zur Funktionsprüfung
+# Healthcheck
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD python --version || exit 1
 
-# 8. Start-Kommando für Portainer-Tests
-# Führt das Script aus. Falls es abstürzt oder fertig wird, bleibt der 
-# Container durch 'sleep infinity' aktiv, damit du die Logs in Portainer prüfen kannst.
-CMD ["/bin/bash", "-c", "python /app/immich-ultra-sync.py --all; echo 'Script beendet oder Fehler aufgetreten. Halte Container für Debugging offen...'; sleep infinity"]
+# 6. Start-Befehl für Testzwecke in Portainer
+# Führt das Script aus und hält den Container danach offen für Debugging/Logs
+CMD ["/bin/bash", "-c", "python /app/immich-ultra-sync.py --all; echo 'Fertig oder Fehler. Halte Container offen...'; sleep infinity"]
