@@ -2,8 +2,8 @@
 FROM python:3.11-slim AS builder
 
 # Installiere Build-Abhängigkeiten (z.B. exiftool)
-RUN apt-get update && apt-get install -y \
-    exiftool \
+RUN apt-get update && apt-get install -y \ 
+    exiftool \ 
     && rm -rf /var/lib/apt/lists/*
 
 # Runtime-Stage: Schlankes finales Image
@@ -28,18 +28,19 @@ WORKDIR /app
 # Gib /app dem User app (für Schreibrechte auf Logs)
 RUN chown -R app:app /app
 
-# Kopiere das Haupt-Script aus dem Repository
+# Kopiere das Haupt-Script und Healthcheck-Script aus dem Repository
 COPY script/immich-ultra-sync.py /app/immich-ultra-sync.py
+COPY healthcheck.py /app/healthcheck.py
 
-# Mache das Script ausführbar (noch als root)
-RUN chmod +x /app/immich-ultra-sync.py
+# Mache die Scripts ausführbar (noch als root)
+RUN chmod +x /app/immich-ultra-sync.py /app/healthcheck.py
 
 # Jetzt non-root User setzen
 USER app
 
-# Optional: Healthcheck (prüft, ob Python verfügbar ist; passe an, wenn du einen echten Endpoint hast)
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD python --version || exit 1
+# Erweiterter Healthcheck: Prüft API-Konnektivität zu Immich
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \ 
+  CMD python /app/healthcheck.py
 
 # Standard-Command: Starte das Script mit Default-Args (Simulation)
 # CMD ["python", "/app/immich-ultra-sync.py", "--all", "--dry-run"]
