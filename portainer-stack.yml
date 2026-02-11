@@ -1,0 +1,40 @@
+# Dockerfile optimiert für Portainer Testumgebung
+# Behebt den SyntaxError (Escape-Falle) in immich-ultra-sync.py
+
+FROM python:3.11-slim
+
+# 1. System-Abhängigkeiten installieren
+# Wir installieren exiftool direkt, um Pfad-Probleme beim manuellen Kopieren zu vermeiden
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    exiftool \
+    && rm -rf /var/lib/apt/lists/*
+
+# 2. Python-Abhängigkeiten
+RUN pip install --no-cache-dir requests tqdm
+
+# 3. Benutzer und Arbeitsverzeichnis einrichten
+RUN useradd --create-home --shell /bin/bash app
+WORKDIR /app
+
+# 4. Script kopieren
+COPY script/immich-ultra-sync.py /app/immich-ultra-sync.py
+
+# 5. FIX DER ESCAPE-FALLE (Zeile 1132)
+# Sucht nach .startswith('\') und ersetzt es durch .startswith('\\')
+# Dies verhindert den "unterminated string literal" SyntaxError
+RUN sed -i "s/part.startswith('\\\\')/part.startswith('\\\\\\\\')/g" /app/immich-ultra-sync.py
+
+# 6. Berechtigungen setzen
+RUN chown -R app:app /app && chmod +x /app/immich-ultra-sync.py
+
+# 7. Non-root User setzen
+USER app
+
+# Healthcheck zur Funktionsprüfung
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD python --version || exit 1
+
+# 8. Start-Kommando für Portainer-Tests
+# Führt das Script aus. Falls es abstürzt oder fertig wird, bleibt der 
+# Container durch 'sleep infinity' aktiv, damit du die Logs in Portainer prüfen kannst.
+CMD ["/bin/bash", "-c", "python /app/immich-ultra-sync.py --all; echo 'Script beendet oder Fehler aufgetreten. Halte Container für Debugging offen...'; sleep infinity"]
