@@ -123,11 +123,11 @@ class ExifToolHelper:
         if not self.process:
             self.start()
             
-        # Filter out the virtual RegionInfo JSON tag used for comparison
-        # We only send the individual += fields to ExifTool
-        real_args = [a for a in args if not a.startswith("-XMP-mwg-rs:RegionInfo=")]
+        # Filter ONLY the virtual tag with JSON data (used for internal comparison)
+        # Keep "-XMP-mwg-rs:RegionInfo=" (empty) because it's used to clear old metadata
+        real_args = [a for a in args if not (a.startswith("-XMP-mwg-rs:RegionInfo=") and len(a) > 23)]
         
-        command = "\n".join(args) + "\n-execute\n"
+        command = "\n".join(real_args) + "\n-execute\n"
         self.process.stdin.write(command)
         self.process.stdin.flush()
         
@@ -787,8 +787,9 @@ def get_current_exif_values(full_path: str, active_modes: List[str]) -> Dict[str
         values = {}
         
         for tag in tags_to_read:
-            if tag in file_data:
-                value = file_data[tag]
+            # Try full tag name first, then short name (without namespace)
+            tag_short = tag.split(":")[-1]
+            value = file_data.get(tag, file_data.get(tag_short))
                 if value is not None and value != "" and value != "-":
                     # Handle structs (RegionInfo is a dict)
                     if isinstance(value, dict):
@@ -881,11 +882,14 @@ def normalize_exif_value(value: str, tag: str) -> str:
     # MWG-RS RegionInfo: normalize to canonical name:coordinates representation
     if tag_short == "RegionInfo":
         try:
+            # If it's already a dict from JSON, use it, otherwise parse it
             data = json.loads(value) if isinstance(value, str) else value
             if isinstance(data, dict):
                 regions = data.get("RegionList", [])
+                # Ensure it's a list even if only one region exists
+                if isinstance(regions, dict): regions = [regions]
                 canonical = []
-                for r in sorted(regions, key=lambda r: r.get("Name", "")):
+                for r in sorted(regions, key=lambda r: str(r.get("Name", ""))):
                     area = r.get("Area", {})
                     canonical.append(
                         f"{r.get('Name', '')}:"
