@@ -122,6 +122,10 @@ class ExifToolHelper:
         """Execute ExifTool command and return (stdout, stderr)."""
         if not self.process:
             self.start()
+            
+        # Filter out the virtual RegionInfo JSON tag used for comparison
+        # We only send the individual += fields to ExifTool
+        real_args = [a for a in args if not a.startswith("-XMP-mwg-rs:RegionInfo=")]
         
         command = "\n".join(args) + "\n-execute\n"
         self.process.stdin.write(command)
@@ -811,7 +815,12 @@ def extract_desired_values(exif_args: List[str]) -> Dict[str, str]:
         if arg.startswith("-") and "=" in arg:
             tag_value = arg[1:]  # Remove leading dash
             tag, value = tag_value.split("=", 1)
-            # Keep full tag name with namespace for proper comparison
+            # Skip individual structural parts for comparison to avoid false positives
+            # We only want to compare the composite RegionInfo tag
+            if any(x in tag for x in ["RegionName", "RegionType", "RegionArea", "RegionApplied"]):
+                continue
+            # Strip trailing plus from tag name for comparison
+            tag = tag.rstrip('+')
             desired[tag] = value
     return desired
 
@@ -1041,40 +1050,48 @@ def build_exif_args(
         people_data = details.get("people", [])
         region_found = False
         
-        # Zuerst bestehende Regionen löschen, um sauber neu aufzubauen
+        # Clean existing regions first
         args.append("-XMP-mwg-rs:RegionInfo=")
         
+        region_list = [] # For the virtual comparison tag
         for person in people_data:
             name = person.get("name")
-            if not name:
-                continue
+            if not name: continue
             for face in person.get("faces", []):
-                x1, y1 = face.get("boundingBoxX1"), face.get("boundingBoxY1")
-                x2, y2 = face.get("boundingBoxX2"), face.get("boundingBoxY2")
-                img_w, img_h = face.get("imageWidth"), face.get("imageHeight")
-                
-                if all(v is not None for v in [x1, y1, x2, y2, img_w, img_h]):
-                    area = convert_bbox_to_mwg_rs(x1, y1, x2, y2, img_w, img_h)
-                    if area:
-                        region_found = True
-                        # Flache Syntax für zuverlässiges Schreiben (+= fügt zur Liste hinzu)
-                        args.append(f"-XMP-mwg-rs:RegionName+={name}")
-                        args.append("-XMP-mwg-rs:RegionType+=Face")
-                        args.append(f"-XMP-mwg-rs:RegionAreaX+={area['X']}")
-                        args.append(f"-XMP-mwg-rs:RegionAreaY+={area['Y']}")
-                        args.append(f"-XMP-mwg-rs:RegionAreaW+={area['W']}")
-                        args.append(f"-XMP-mwg-rs:RegionAreaH+={area['H']}")
-                        args.append("-XMP-mwg-rs:RegionAreaUnit+=normalized")
+                area = convert_bbox_to_mwg_rs(
+                    face.get("boundingBoxX1"), face.get("boundingBoxY1"),
+                    face.get("boundingBoxX2"), face.get("boundingBoxY2"),
+                    face.get("imageWidth"), face.get("imageHeight")
+                )
+                if area:
+                    region_found = True
+                    # Real fields for ExifTool execution
+                    args.extend([
+                        f"-XMP-mwg-rs:RegionName+={name}",
+                        "-XMP-mwg-rs:RegionType+=Face",
+                        f"-XMP-mwg-rs:RegionAreaX+={area['X']}",
+                        f"-XMP-mwg-rs:RegionAreaY+={area['Y']}",
+                        f"-XMP-mwg-rs:RegionAreaW+={area['W']}",
+                        f"-XMP-mwg-rs:RegionAreaH+={area['H']}",
+                        "-XMP-mwg-rs:RegionAreaUnit+=normalized"
+                    ])
+                    # Structure for virtual comparison
+                    region_list.append({
+                        "Area": {**area, "Unit": "normalized"},
+                        "Name": name, "Type": "Face"
+                    })
 
         if region_found:
-            # Die Dimensionen gelten für die gesamte Region-Struktur
-            first_face_data = next((p.get("faces", [{}])[0] for p in people_data if p.get("faces")), {})
-            w = first_face_data.get("imageWidth")
-            h = first_face_data.get("imageHeight")
-            if w and h:
-                args.append(f"-XMP-mwg-rs:RegionAppliedToDimensionsW={w}")
-                args.append(f"-XMP-mwg-rs:RegionAppliedToDimensionsH={h}")
-                args.append("-XMP-mwg-rs:RegionAppliedToDimensionsUnit=pixel")
+            first_f = next((p["faces"][0] for p in people_data if p.get("faces")), {})
+            dims = {"W": first_f.get("imageWidth"), "H": first_f.get("imageHeight"), "Unit": "pixel"}
+            args.extend([
+                f"-XMP-mwg-rs:RegionAppliedToDimensionsW={dims['W']}",
+                f"-XMP-mwg-rs:RegionAppliedToDimensionsH={dims['H']}",
+                "-XMP-mwg-rs:RegionAppliedToDimensionsUnit=pixel"
+            ])
+            # The virtual tag: Used by extract_desired_values, but filtered out in execute()
+            regions = {"AppliedToDimensions": dims, "RegionList": region_list}
+            args.append(f"-XMP-mwg-rs:RegionInfo={json.dumps(regions)}")
             changes.append("FaceCoordinates")
 
     return args, changes
