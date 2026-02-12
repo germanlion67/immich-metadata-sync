@@ -194,7 +194,9 @@ def extract_desired_values(exif_args: List[str]) -> Dict[str, str]:
                 continue
             # Strip trailing plus from tag name for comparison
             tag = tag.rstrip('+')
-            desired[tag] = value
+            # Normalize tag to short name (without namespace prefix)
+            tag_short = tag.split(":")[-1]
+            desired[tag_short] = value
     return desired
 
 
@@ -237,12 +239,15 @@ def normalize_exif_value(value: str, tag: str) -> str:
     
         
     # DateTime fields: normalize separators
-    if tag in ["DateTimeOriginal", "CreateDate"]:
+    if tag in ["DateTimeOriginal", "CreateDate"] or tag_short in ["DateTimeOriginal", "CreateDate", "XMP:CreateDate"]:
         # Convert "YYYY:MM:DD HH:MM:SS" format variations
         normalized = value.replace("-", ":").replace("T", " ")
+        # Remove trailing 'Z' if present
+        normalized = normalized.rstrip('Z').strip()
         # Take first 19 characters (YYYY:MM:DD HH:MM:SS)
         if len(normalized) >= 19:
             return normalized[:19]
+        return normalized
     
     # Photoshop:DateCreated: ISO date format (YYYY-MM-DD only, no time)
     if tag_short == "DateCreated":  # ← FIX: ohne Namespace
@@ -422,9 +427,6 @@ def build_exif_args(
         people_data = details.get("people", [])
         region_found = False
         
-        # Clean existing regions first
-        args.append("-XMP-mwg-rs:RegionInfo=")
-        
         region_list = [] # For the virtual comparison tag
         for person in people_data:
             name = person.get("name")
@@ -437,16 +439,6 @@ def build_exif_args(
                 )
                 if area:
                     region_found = True
-                    # Real fields for ExifTool execution
-                    args.extend([
-                        f"-XMP-mwg-rs:RegionName+={name}",
-                        "-XMP-mwg-rs:RegionType+=Face",
-                        f"-XMP-mwg-rs:RegionAreaX+={area['X']}",
-                        f"-XMP-mwg-rs:RegionAreaY+={area['Y']}",
-                        f"-XMP-mwg-rs:RegionAreaW+={area['W']}",
-                        f"-XMP-mwg-rs:RegionAreaH+={area['H']}",
-                        "-XMP-mwg-rs:RegionAreaUnit+=normalized"
-                    ])
                     # Structure for virtual comparison
                     region_list.append({
                         "Area": {**area, "Unit": "normalized"},
@@ -454,6 +446,26 @@ def build_exif_args(
                     })
 
         if region_found:
+            # Add -struct flag for proper structure handling
+            args.append("-struct")
+            
+            # Clean existing regions first
+            args.append("-XMP-mwg-rs:RegionInfo=")
+            
+            # Add real fields for ExifTool execution
+            for region in region_list:
+                name = region["Name"]
+                area = region["Area"]
+                args.extend([
+                    f"-XMP-mwg-rs:RegionName+={name}",
+                    "-XMP-mwg-rs:RegionType+=Face",
+                    f"-XMP-mwg-rs:RegionAreaX+={area['X']}",
+                    f"-XMP-mwg-rs:RegionAreaY+={area['Y']}",
+                    f"-XMP-mwg-rs:RegionAreaW+={area['W']}",
+                    f"-XMP-mwg-rs:RegionAreaH+={area['H']}",
+                    "-XMP-mwg-rs:RegionAreaUnit+=normalized"
+                ])
+            
             first_f = next((p["faces"][0] for p in people_data if p.get("faces")), {})
             dims = {"W": first_f.get("imageWidth"), "H": first_f.get("imageHeight"), "Unit": "pixel"}
             args.extend([
@@ -463,7 +475,7 @@ def build_exif_args(
             ])
             # The virtual tag: Used by extract_desired_values, but filtered out in execute()
             regions = {"AppliedToDimensions": dims, "RegionList": region_list}
-            args.append(f"-XMP-mwg-rs:RegionInfo={json.dumps(regions)}")
+            args.append(f"-RegionInfo={json.dumps(regions)}")
             changes.append("FaceCoordinates")
 
     return args, changes
