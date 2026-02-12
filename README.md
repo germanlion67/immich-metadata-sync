@@ -5,7 +5,44 @@
 
 Syncing Immich metadata back into your original media files.
 
-## 🐳 Docker Hub
+## Table of Contents
+- [Features](#features)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Configuration](#configuration)
+- [Album Synchronization](#album-synchronization)
+- [Face Coordinates (MWG-RS)](#face-coordinates-mwg-rs)
+- [Documentation](#documentation)
+- [Troubleshooting](#troubleshooting)
+- [Development](#development)
+
+## Features
+
+`immich-ultra-sync.py` connects to your Immich instance with an API key, fetches asset metadata, maps Immich paths to the mounted library, and writes values into EXIF/XMP:
+
+- **People** → `XMP:Subject`, `IPTC:Keywords`, `XMP-iptcExt:PersonInImage`
+- **GPS** → `GPSLatitude`, `GPSLongitude`, `GPSAltitude`
+- **Captions** → `XMP:Description`, `IPTC:Caption-Abstract`
+- **Time** → `DateTimeOriginal`, `CreateDate`, `XMP:CreateDate`, `XMP-photoshop:DateCreated`
+- **Favorites** → `Rating` (5 stars for favorites, 0 otherwise)
+- **Albums** → `XMP-iptcExt:Event`, `XMP:HierarchicalSubject` and `EXIF:UserComment` → Windows "Kommentare" (when `--albums` flag is used)
+- **Face Coordinates** → `RegionInfo` (MWG-RS XMP regions with bounding boxes, when `--face-coordinates` flag is used)
+
+The `--only-new` mode compares desired EXIF values with what is already on disk and skips files with no changes to reduce disk I/O.
+
+## Requirements
+
+- Python 3.9 or higher
+- ExifTool
+- Required Python packages:
+  - `requests`
+  - `tqdm` (optional, for progress bars)
+- Docker (optional, for containerized deployment)
+
+## Installation
+
+### 🐳 Using Docker
 
 The pre-built Docker image is available on Docker Hub: [germanlion67/immich-metadata-sync](https://hub.docker.com/r/germanlion67/immich-metadata-sync)
 
@@ -14,29 +51,42 @@ The pre-built Docker image is available on Docker Hub: [germanlion67/immich-meta
 docker pull germanlion67/immich-metadata-sync:latest
 ```
 
-## What this script does
-`immich-ultra-sync.py` connects to your Immich instance with an API key, fetches asset metadata, maps Immich paths to the mounted library, and writes values into EXIF/XMP:
+### Local Installation
 
-- People → `XMP:Subject`, `IPTC:Keywords`, `XMP-iptcExt:PersonInImage`
-- GPS → `GPSLatitude`, `GPSLongitude`, `GPSAltitude`
-- Captions → `XMP:Description`, `IPTC:Caption-Abstract`
-- Time → `DateTimeOriginal`, `CreateDate`, `XMP:CreateDate`, `XMP-photoshop:DateCreated`
-- Favorites → `Rating` (5 stars for favorites, 0 otherwise)
-- Albums → `XMP-iptcExt:Event`, `XMP:HierarchicalSubject` und `EXIF:UserComment` → Windows "Kommentare" (when `--albums` flag is used)
-- Face Coordinates → `RegionInfo` (MWG-RS XMP regions with bounding boxes, when `--face-coordinates` flag is used)
+1. Clone the repository:
+```bash
+git clone https://github.com/germanlion67/immich-metadata-sync.git
+cd immich-metadata-sync
+```
 
-The `--only-new` mode compares desired EXIF values with what is already on disk and skips files with no changes to reduce disk I/O.
+2. Install ExifTool:
+```bash
+# On Ubuntu/Debian
+sudo apt-get install libimage-exiftool-perl
 
-## Quick start
+# On macOS
+brew install exiftool
+
+# On Windows
+# Download from https://exiftool.org/
+```
+
+3. Install Python dependencies:
+```bash
+pip install requests tqdm
+```
+
+## Usage
+
+### Quick Start
+
 1. Build and run the Docker image as described in the [runbook](runbook.md).  
 2. Mount your Immich library into the container at `/library` (or set `PHOTO_DIR`).  
 3. Run the sync:  
    ```bash
-   python3 immich-ultra-sync.py --all --only-new
+   python3 script/immich-ultra-sync.py --all --only-new
    ```
-4. Trigger an “Offline Assets Scan” in Immich to re-index updated files.
-
-## 🚀 Usage Examples
+4. Trigger an "Offline Assets Scan" in Immich to re-index updated files.
 
 ### Using Docker Run
 
@@ -80,22 +130,56 @@ Then run:
 docker-compose up -d
 ```
 
-### Environment Variables
+### Command Line Options
 
-The following environment variables are required or recommended:
+```bash
+# Sync all metadata including albums
+python3 script/immich-ultra-sync.py --all --albums
 
-| Variable | Required | Description | Default |
-| --- | --- | --- | --- |
-| `IMMICH_INSTANCE_URL` | **Yes** | URL to your Immich instance (e.g., `http://immich:2283`) | - |
-| `IMMICH_API_KEY` | **Yes** | API key from Immich user settings | - |
-| `PHOTO_DIR` | No | Path where the photo library is mounted inside the container | `/library` |
-| `TZ` | No | Timezone for correct date handling | `Europe/Berlin` |
-| `LOG_FILE` | No | Path to the log file | `/app/logs/immich_ultra_sync.txt` |
-| `CAPTION_MAX_LEN` | No | Max length for captions before truncation | `2000` |
-| `IMMICH_ALBUM_CACHE_TTL` | No | Album cache lifetime in seconds | `86400` (24 hours) |
-| `IMMICH_ALBUM_CACHE_MAX_STALE` | No | Maximum age for stale cache fallback in seconds | `604800` (7 days) |
+# Sync only people and albums
+python3 script/immich-ultra-sync.py --people --albums
+
+# Preview what would be synced (dry-run)
+python3 script/immich-ultra-sync.py --all --albums --dry-run --only-new
+
+# Sync people names and face coordinates
+python3 script/immich-ultra-sync.py --people --face-coordinates
+
+# Resume from previous run
+python3 script/immich-ultra-sync.py --all --resume
+
+# Export statistics
+python3 script/immich-ultra-sync.py --all --export-stats json
+```
+
+Common flags:
+- `--all` - Enable all modules (`people`, `gps`, `caption`, `time`, `rating`)
+- `--albums` - Sync album information to XMP metadata (opt-in, not included in `--all`)
+- `--face-coordinates` - Sync face bounding boxes as MWG-RS regions to XMP (opt-in, not included in `--all`)
+- `--dry-run` - Preview without writing
+- `--only-new` - Skip files that already have metadata
+- `--resume` / `--clear-checkpoint` - Continue or reset progress
+- `--clear-album-cache` - Clear the album cache before running (forces fresh fetch from API)
+- `--export-stats json|csv` - Capture run statistics
+- `--log-level {DEBUG,INFO,WARNING,ERROR}` - Set logging verbosity
+
+## Configuration
+
+Set these environment variables (or provide a config file via `--config`):
+
+| Variable | Description | Default |
+| --- | --- | --- |
+| `IMMICH_INSTANCE_URL` | **Required**. URL to your Immich instance (e.g., `http://immich:2283`) | - |
+| `IMMICH_API_KEY` | **Required**. API key from Immich user settings | - |
+| `PHOTO_DIR` | Path where the photo library is mounted inside the container | `/library` |
+| `TZ` | Timezone for correct date handling | `Europe/Berlin` |
+| `LOG_FILE` | Path to the log file | `immich_ultra_sync.txt` |
+| `CAPTION_MAX_LEN` | Max length for captions before truncation | `2000` |
+| `IMMICH_ALBUM_CACHE_TTL` | Album cache lifetime in seconds | `86400` (24 hours) |
+| `IMMICH_ALBUM_CACHE_MAX_STALE` | Maximum age for stale cache fallback in seconds | `604800` (7 days) |
 
 ## Album Synchronization
+
 The `--albums` flag enables syncing of Immich album assignments into XMP metadata fields. This allows you to preserve your album organization when exporting photos or using other tools that support XMP metadata.
 
 **XMP Fields Used:**
@@ -103,69 +187,10 @@ The `--albums` flag enables syncing of Immich album assignments into XMP metadat
 - `XMP:HierarchicalSubject` - All albums as hierarchical keywords (e.g., `Albums|Summer 2024`)
 - `EXIF:UserComment` → Windows "Kommentare"
 
-**Usage Examples:**
-```bash
-# Sync all metadata including albums
-python3 immich-ultra-sync.py --all --albums
-
-# Sync only people and albums
-python3 immich-ultra-sync.py --people --albums
-
-# Preview what would be synced (dry-run)
-python3 immich-ultra-sync.py --all --albums --dry-run --only-new
-```
-
 **Performance:** Album information is fetched once at startup via a single API call (`GET /albums`), ensuring minimal performance impact even for large libraries. The album data is cached on disk with a configurable TTL (Time To Live) to avoid repeated API calls on subsequent runs.
 
-## Face Coordinates (MWG-RS)
-The `--face-coordinates` flag enables syncing of Immich face detection bounding boxes into XMP metadata as MWG-RS (Metadata Working Group Region Structure) regions. This allows tools like Lightroom, digiKam, and other MWG-RS-aware applications to display face regions.
-
-**How it works:**
-- Immich provides pixel bounding boxes (X1/Y1/X2/Y2) and image dimensions for each detected face
-- The script converts these to normalized MWG-RS coordinates (center X/Y, width, height in 0–1 range)
-- Each region is written with `Type=Face` and `Name=<person name>`
-
-**Usage Examples:**
-```bash
-# Sync people names and face coordinates
-python3 immich-ultra-sync.py --people --face-coordinates
-
-# Sync all metadata plus face coordinates
-python3 immich-ultra-sync.py --all --face-coordinates
-
-# Preview what would be synced (dry-run)
-python3 immich-ultra-sync.py --all --face-coordinates --dry-run
-```
-
-**Notes:**
-- `--face-coordinates` is opt-in and not included in `--all`
-- Requires Immich API to return face bounding box data in the asset details (available in recent Immich versions)
-- Unnamed persons are skipped
-
-
-## Configuration
-Set these environment variables (or provide a config file via `--config`):
-
-| Variable | Description | Default |
-| --- | --- | --- |
-| `IMMICH_INSTANCE_URL` | Immich URL without `/api` (fallback will try `/api`) | `""` |
-| `IMMICH_API_KEY` | Immich API key for the user running the sync | `None` |
-| `PHOTO_DIR` | Path where the photo library is mounted inside the container | `/library` |
-| `TZ` | Timezone for correct date handling | `Europe/Berlin` |
-| `CAPTION_MAX_LEN` | Max length for captions before truncation | `2000` |
-| `IMMICH_ALBUM_CACHE_TTL` | Album cache lifetime in seconds | `86400` (24 hours) |
-| `IMMICH_ALBUM_CACHE_MAX_STALE` | Maximum age for stale cache fallback in seconds | `604800` (7 days) |
-
-Common flags:
-- `--all` enable all modules (`people`, `gps`, `caption`, `time`, `rating`)
-- `--albums` sync album information to XMP metadata (opt-in, not included in `--all`)
-- `--face-coordinates` sync face bounding boxes as MWG-RS regions to XMP (opt-in, not included in `--all`)
-- `--dry-run` to preview without writing
-- `--resume` / `--clear-checkpoint` to continue or reset progress
-- `--clear-album-cache` clear the album cache before running (forces fresh fetch from API)
-- `--export-stats json|csv` to capture run statistics
-
 ### Album Cache Behavior
+
 When `--albums` is enabled, the script maintains a persistent cache of album assignments:
 - **Cache TTL**: By default, the cache is valid for 24 hours (`IMMICH_ALBUM_CACHE_TTL`). Within this period, the script uses the cached data instead of fetching from the API.
 - **Stale Fallback**: If the API fetch fails, the script attempts to use stale cache data up to 7 days old (`IMMICH_ALBUM_CACHE_MAX_STALE`) as a fallback.
@@ -175,21 +200,83 @@ When `--albums` is enabled, the script maintains a persistent cache of album ass
 **Example:**
 ```bash
 # First run fetches from API and caches the result
-python3 immich-ultra-sync.py --all --albums
+python3 script/immich-ultra-sync.py --all --albums
 
 # Subsequent runs within 24 hours use the cache (much faster)
-python3 immich-ultra-sync.py --all --albums
+python3 script/immich-ultra-sync.py --all --albums
 
 # Force fresh fetch by clearing the cache
-python3 immich-ultra-sync.py --all --albums --clear-album-cache
+python3 script/immich-ultra-sync.py --all --albums --clear-album-cache
 ```
 
+## Face Coordinates (MWG-RS)
+
+The `--face-coordinates` flag enables syncing of Immich face detection bounding boxes into XMP metadata as MWG-RS (Metadata Working Group Region Structure) regions. This allows tools like Lightroom, digiKam, and other MWG-RS-aware applications to display face regions.
+
+**How it works:**
+- Immich provides pixel bounding boxes (X1/Y1/X2/Y2) and image dimensions for each detected face
+- The script converts these to normalized MWG-RS coordinates (center X/Y, width, height in 0–1 range)
+- Each region is written with `Type=Face` and `Name=<person name>`
+
+**Notes:**
+- `--face-coordinates` is opt-in and not included in `--all`
+- Requires Immich API to return face bounding box data in the asset details (available in recent Immich versions)
+- Unnamed persons are skipped
+
 ## Documentation
+
 - **Docker environment setup:** [runbook.md](runbook.md)  
 - **Script reference:** [doc/immich-metadata-sync.md](doc/immich-metadata-sync.md)  
 - **German documentation:** see [doc/de](doc/de/)
 
-## Maintenance notes
-- ExifTool stay-open mode and rate limiting keep performance high while avoiding API overload.
-- Logs are written to `immich_ultra_sync.txt` in the script directory.
-- Use `--only-new` for repeat runs to minimize disk writes.
+## Troubleshooting
+
+### Common Issues
+
+**ExifTool not found:**
+- Make sure ExifTool is installed and in your PATH
+- Run `exiftool -ver` to verify
+
+**API connection errors:**
+- Verify `IMMICH_INSTANCE_URL` and `IMMICH_API_KEY` are correct
+- Check network connectivity between the script and Immich instance
+
+**Files not found:**
+- Ensure `PHOTO_DIR` points to the correct library mount
+- Check path segments configuration (`IMMICH_PATH_SEGMENTS`)
+
+**Performance issues:**
+- Use `--only-new` to skip already-synced files
+- Enable album cache to reduce API calls
+- Adjust batch size via `IMMICH_ASSET_BATCH_SIZE`
+
+## Development
+
+### Project Structure
+
+The project has been refactored into modules for better maintainability:
+
+```
+script/
+├── immich-ultra-sync.py  # Main orchestration script
+├── utils.py              # Utility functions and constants
+├── api.py                # API-related functions and RateLimiter
+└── exif.py               # EXIF/XMP metadata handling
+```
+
+### Running Tests
+
+```bash
+# Run with pytest
+pytest tests/ -v
+
+# Run with unittest
+python -m unittest discover -s tests -p "test_*.py" -v
+```
+
+### Maintenance Notes
+
+- ExifTool stay-open mode and rate limiting keep performance high while avoiding API overload
+- Logs are written to `immich_ultra_sync.txt` in the script directory
+- Use `--only-new` for repeat runs to minimize disk writes
+- The codebase follows modular design for easier maintenance and testing

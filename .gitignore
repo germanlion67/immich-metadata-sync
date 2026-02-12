@@ -35,4 +35,11 @@ Thumbs.db
 *.log
 *.txt
 
+# Local cache and checkpoint files
+.immich_sync_checkpoint.pkl
+.immich_album_cache.json
+.immich_album_cache.lock
+immich_sync_stats_*.json
+immich_sync_stats_*.csv
+
 .env
