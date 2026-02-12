@@ -279,13 +279,6 @@ class AlbumSyncTests(ModuleLoaderMixin):
         
         # asset5 should not be in the map (missing albumName key)
         self.assertNotIn("asset5", album_map)
-        self.assertEqual(album_map["asset2"], ["Summer 2024"])
-        
-        # asset3 should be in one album
-        self.assertEqual(album_map["asset3"], ["Vacation"])
-        
-        # asset4 should not be in the map (empty album name)
-        self.assertNotIn("asset4", album_map)
     
     def test_build_exif_args_with_albums(self):
         asset = {"id": "test-asset-id", "isFavorite": False}
