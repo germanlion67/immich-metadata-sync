@@ -1,25 +1,46 @@
 # Immich Metadata Sync – Technische Dokumentation 
-*(Script v1.2)*
+*(Script v1.3)*
 
 Diese Dokumentation beschreibt Aufbau, Konfiguration und Ablauf des Skripts `immich-ultra-sync.py` im Ordner `/immich-metadata-sync/script/`. Ziel ist es, Immich-Metadaten (Personen, GPS, Beschreibungen, Zeitstempel, Rating, Alben, Gesichtskoordinaten) verlustfrei in die Originaldateien zurückzuschreiben.
 
-## Architektur und Datenfluss
+## Architektur und Modularisierung
+
+Das Projekt wurde in mehrere Module aufgeteilt für bessere Wartbarkeit:
+
+### Modulstruktur
+```
+script/
+├── immich-ultra-sync.py  # Hauptskript (Orchestrierung)
+├── utils.py              # Hilfsfunktionen und Konstanten
+├── api.py                # API-bezogene Funktionen und RateLimiter
+└── exif.py               # EXIF/XMP-Metadaten-Verwaltung
+```
+
+### Module-Beschreibung
+- **`utils.py`**: Enthält alle globalen Konstanten, LogLevel-System, allgemeine Hilfsfunktionen (Logging, Checkpoint, Konfiguration, Album-Cache, Pfad-Validierung)
+- **`api.py`**: RateLimiter-Klasse, API-Aufrufe, Asset-Abruf, Batch-Operationen
+- **`exif.py`**: ExifToolHelper-Klasse (stay-open mode), EXIF-Werte auslesen/schreiben, Normalisierung, MWG-RS-Konvertierung
+- **`immich-ultra-sync.py`**: Hauptlogik (process_asset, CLI-Parsing, main-Funktion)
+
+## Datenfluss
 1. **Konfiguration & Startparameter**  
    - Umgebungsvariablen:  
      - `IMMICH_INSTANCE_URL` (ohne abschließenden `/api`, wird intern ergänzt/fallback)  
      - `IMMICH_API_KEY`  
      - `PHOTO_DIR` (Standard `/library`, interner Mount mit Fotos)  
-   - CLI-Flags: `--all`, `--people`, `--gps`, `--caption`, `--time`, `--rating`, `--albums`, `--face-coordinates`, `--dry-run`, `--only-new`, `--resume`, `--clear-checkpoint`, `--clear-album-cache`, `--help`.
+   - CLI-Flags: `--all`, `--people`, `--gps`, `--caption`, `--time`, `--rating`, `--albums`, `--face-coordinates`, `--dry-run`, `--only-new`, `--resume`, `--clear-checkpoint`, `--clear-album-cache`, `--log-level`, `--help`.
 
-2. **Asset-Ermittlung**  
+2. **Asset-Ermittlung** (`api.py`)  
    - POST `/{api}/search/metadata` liefert Asset-Liste.  
-   - Für jedes Asset folgt GET `/assets/{id}` für Detaildaten (EXIF, People, Favorite-Status).
+   - Batch-Endpoint (`/assets/batch`) für effizientes Abrufen von Asset-Details
+   - Fallback auf einzelne GET `/assets/{id}` bei fehlender Batch-Unterstützung
 
-3. **Pfad-Mapping**  
+3. **Pfad-Mapping** (`utils.py`)  
    - `originalPath` wird auf Containerpfad gemappt (`PHOTO_DIR/<Jahr>/<Monat>/<Datei>` anhand der letzten 3 Pfadsegmente).  
    - Existenzcheck verhindert Schreibversuch auf fehlende Dateien.
+   - Sicherheitsprüfungen gegen Path-Traversal-Angriffe
 
-4. **Exif-Argumente bauen** (`build_exif_args`)  
+4. **Exif-Argumente bauen** (`exif.py` - `build_exif_args`)  
    - People → `XMP:Subject`, `IPTC:Keywords`, `XMP-iptcExt:PersonInImage`  
    - GPS → `GPSLatitude`, `GPSLongitude`, `GPSAltitude`  
    - Caption → `XMP:Description`, `IPTC:Caption-Abstract`  
@@ -28,14 +49,23 @@ Diese Dokumentation beschreibt Aufbau, Konfiguration und Ablauf des Skripts `imm
    - Albums → `XMP-iptcExt:Event`, `XMP:HierarchicalSubject`, `EXIF:UserComment`  
    - Face Coordinates → `RegionInfo` (MWG-RS Regionen mit Gesichtskoordinaten)
 
-5. **Ausführung**  
+5. **Ausführung** (`exif.py` - `ExifToolHelper`)  
+   - ExifTool im stay-open Modus für bessere Performance
    - `--dry-run`: Nur Logging, kein Schreiben.  
    - Regulär: `exiftool -overwrite_original <args> <file>`  
-   - `--only-new` (nur mit Rating relevant): prüft vorhandenes Rating via `exiftool -Rating` und überspringt identische Werte.
+   - `--only-new`: Prüft vorhandene EXIF-Werte und überspringt unveränderte Dateien
 
-6. **Logging**  
+6. **Logging** (`utils.py`)  
    - Datei: `immich_ultra_sync.txt` im Skript-Verzeichnis.  
    - Enthält Startparameter, Pfade mit Änderungen, Übersprünge und Fehler.
+   - Konfigurierbare Log-Level: DEBUG, INFO, WARNING, ERROR
+
+## CI/CD und Tests
+
+Das Projekt verfügt nun über automatisierte Tests und CI/CD:
+- **Pytest-Workflow**: `.github/workflows/pytest.yml` führt Tests bei jedem Push/PR aus
+- **Test-Suite**: `tests/test_immich_ultra_sync.py` testet alle Kernfunktionen
+- **Python-Versionen**: Tests laufen auf Python 3.9, 3.10, 3.11, 3.12
 
 ## Betriebs- und Deployment-Hinweise
 - **Abhängigkeiten**: Python 3, `requests`, `exiftool`.  
@@ -77,10 +107,15 @@ Diese Dokumentation beschreibt Aufbau, Konfiguration und Ablauf des Skripts `imm
 - Timeout/Fehlertoleranz bei API-Calls; Script bricht nicht bei Einzel-Fehlern ab.  
 - Rating-Check minimiert unnötige Schreibzugriffe.
 
-## Änderungsprotokoll (Script v1.2)
+## Änderungsprotokoll (Script v1.3)
+- **Modularisierung**: Code in separate Module aufgeteilt (utils.py, api.py, exif.py)
+- **CI/CD**: Automatisierte Tests mit pytest über GitHub Actions
+- **Verbesserte Dokumentation**: Strukturierte README mit Abschnitten für Features, Installation, Nutzung, Troubleshooting
+- **Album-Cache**: Persistenter Cache für Album-Informationen mit TTL und Stale-Fallback
+- **ExifTool stay-open**: Performante EXIF-Verarbeitung im stay-open Modus
 - Robustere API-Aufrufe mit Fallback `/api`.  
 - Module: People, GPS, Caption, Time, Rating, Albums, Face Coordinates (MWG-RS).  
 - Smart-Skip für alle Metadaten (`--only-new`).  
-- Logging erweitert (Start/Finish, Pfade, Fehler).  
+- Logging erweitert (Start/Finish, Pfade, Fehler, konfigurierbare Log-Level).  
 - Gesichtserkennungs-Koordinaten als MWG-RS-Regionen (opt-in via `--face-coordinates`).  
 - Album-Sync mit persistentem Cache und TTL.
