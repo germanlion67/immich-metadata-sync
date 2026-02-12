@@ -1,5 +1,5 @@
 # Immich Metadata Sync – Technische Dokumentation 
-*(Script v1.3)*
+*(Script v1.4)*
 
 Diese Dokumentation beschreibt Aufbau, Konfiguration und Ablauf des Skripts `immich-ultra-sync.py` im Ordner `/immich-metadata-sync/script/`. Ziel ist es, Immich-Metadaten (Personen, GPS, Beschreibungen, Zeitstempel, Rating, Alben, Gesichtskoordinaten) verlustfrei in die Originaldateien zurückzuschreiben.
 
@@ -24,10 +24,11 @@ script/
 
 ## Datenfluss
 1. **Konfiguration & Startparameter**  
-   - Umgebungsvariablen:  
+   - Umgebungsvariablen/Konfigdateien (`--config` unterstützt INI, `.env`, JSON):  
      - `IMMICH_INSTANCE_URL` (ohne abschließenden `/api`, wird intern ergänzt/fallback)  
      - `IMMICH_API_KEY`  
-     - `PHOTO_DIR` (Standard `/library`, interner Mount mit Fotos)  
+     - `IMMICH_PHOTO_DIR` (Standard `/library`, interner Mount mit Fotos)  
+     - `IMMICH_LOG_FORMAT=json` oder `IMMICH_STRUCTURED_LOGS=true` für strukturierte JSON-Logs  
    - CLI-Flags: `--all`, `--people`, `--gps`, `--caption`, `--time`, `--rating`, `--albums`, `--face-coordinates`, `--dry-run`, `--only-new`, `--resume`, `--clear-checkpoint`, `--clear-album-cache`, `--log-level`, `--help`.
 
 2. **Asset-Ermittlung** (`api.py`)  
@@ -107,12 +108,13 @@ Das Projekt verfügt nun über automatisierte Tests und CI/CD:
 - Timeout/Fehlertoleranz bei API-Calls; Script bricht nicht bei Einzel-Fehlern ab.  
 - Rating-Check minimiert unnötige Schreibzugriffe.
 
-## Änderungsprotokoll (Script v1.3)
+## Änderungsprotokoll (Script v1.4)
 - **Modularisierung**: Code in separate Module aufgeteilt (utils.py, api.py, exif.py)
 - **CI/CD**: Automatisierte Tests mit pytest über GitHub Actions
 - **Verbesserte Dokumentation**: Strukturierte README mit Abschnitten für Features, Installation, Nutzung, Troubleshooting
 - **Album-Cache**: Persistenter Cache für Album-Informationen mit TTL und Stale-Fallback
 - **ExifTool stay-open**: Performante EXIF-Verarbeitung im stay-open Modus
+- **Konfiguration & Logging**: `.env`/JSON-Config-Support und optionale strukturierte JSON-Logs mit Metriken
 - Robustere API-Aufrufe mit Fallback `/api`.  
 - Module: People, GPS, Caption, Time, Rating, Albums, Face Coordinates (MWG-RS).  
 - Smart-Skip für alle Metadaten (`--only-new`).  

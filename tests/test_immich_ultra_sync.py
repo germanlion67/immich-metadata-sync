@@ -509,6 +509,30 @@ class ConfigLoaderTests(ModuleLoaderMixin):
         self.assertEqual(config['IMMICH_INSTANCE_URL'], '')
         self.assertEqual(config['IMMICH_PHOTO_DIR'], self.module.DEFAULT_PHOTO_DIR)
 
+    def test_load_config_env_file(self):
+        import os
+        import tempfile
+        with tempfile.NamedTemporaryFile("w", suffix=".env", delete=False) as tmp:
+            tmp.write("IMMICH_INSTANCE_URL=https://demo.invalid\n")
+            tmp.write("IMMICH_API_KEY=abc123\n")
+            tmp_path = tmp.name
+        config = self.module.load_config(tmp_path)
+        self.assertEqual(config["IMMICH_INSTANCE_URL"], "https://demo.invalid")
+        self.assertEqual(config["IMMICH_API_KEY"], "abc123")
+        os.unlink(tmp_path)
+
+    def test_load_config_json_file(self):
+        import json
+        import os
+        import tempfile
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as tmp:
+            json.dump({"IMMICH_INSTANCE_URL": "https://json.invalid", "IMMICH_LOG_FILE": "test.log"}, tmp)
+            tmp_path = tmp.name
+        config = self.module.load_config(tmp_path)
+        self.assertEqual(config["IMMICH_INSTANCE_URL"], "https://json.invalid")
+        self.assertEqual(config["IMMICH_LOG_FILE"], "test.log")
+        os.unlink(tmp_path)
+
 
 class FaceCoordinatesTests(ModuleLoaderMixin):
     def test_convert_bbox_to_mwg_rs_basic(self):

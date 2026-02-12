@@ -1,5 +1,5 @@
 # 📸 IMMICH ULTRA-SYNC
-*v1.3*
+*v1.4*
 
 ![Docker Pulls](https://img.shields.io/docker/pulls/germanlion67/immich-metadata-sync)
 
@@ -165,18 +165,22 @@ Common flags:
 
 ## Configuration
 
-Set these environment variables (or provide a config file via `--config`):
+Set these environment variables (or provide a config file via `--config`). Supported config formats are:
+- INI (default `immich-sync.conf`)
+- `.env` files with `KEY=value` lines
+- JSON objects with keys matching the environment variables
 
 | Variable | Description | Default |
 | --- | --- | --- |
 | `IMMICH_INSTANCE_URL` | **Required**. URL to your Immich instance (e.g., `http://immich:2283`) | - |
 | `IMMICH_API_KEY` | **Required**. API key from Immich user settings | - |
-| `PHOTO_DIR` | Path where the photo library is mounted inside the container | `/library` |
+| `IMMICH_PHOTO_DIR` | Path where the photo library is mounted inside the container | `/library` |
 | `TZ` | Timezone for correct date handling | `Europe/Berlin` |
-| `LOG_FILE` | Path to the log file | `immich_ultra_sync.txt` |
+| `IMMICH_LOG_FILE` | Path to the log file | `immich_ultra_sync.txt` |
 | `CAPTION_MAX_LEN` | Max length for captions before truncation | `2000` |
 | `IMMICH_ALBUM_CACHE_TTL` | Album cache lifetime in seconds | `86400` (24 hours) |
 | `IMMICH_ALBUM_CACHE_MAX_STALE` | Maximum age for stale cache fallback in seconds | `604800` (7 days) |
+| `IMMICH_LOG_FORMAT` / `IMMICH_STRUCTURED_LOGS` | Set to `json` or `true` to emit structured JSON log lines (key/value) | text |
 
 ## Album Synchronization
 

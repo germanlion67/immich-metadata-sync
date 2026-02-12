@@ -271,6 +271,14 @@ def main() -> None:
         f"batch_size={batch_size} | path_segments={path_segments} | caption_max_len={caption_max_len}",
         log_file,
         LogLevel.INFO,
+        extra={
+            "modes": active_modes,
+            "dry_run": dry_run,
+            "only_new": only_new,
+            "batch_size": batch_size,
+            "path_segments": path_segments,
+            "caption_max_len": caption_max_len,
+        },
     )
 
     assets = fetch_assets(headers, base_url, page_size, log_file)
@@ -391,6 +399,7 @@ def main() -> None:
         f"Simulated:{statistics['simulated']} Skipped:{statistics['skipped']} Errors:{statistics['errors']}",
         log_file,
         LogLevel.INFO,
+        extra={"statistics": statistics},
     )
     
     # Export statistics if requested
