@@ -29,11 +29,18 @@ WORKDIR /app
 RUN chown -R app:app /app
 
 # Kopiere das Haupt-Script und Healthcheck-Script aus dem Repository
-COPY script/immich-ultra-sync.py /app/immich-ultra-sync.py
-COPY script/healthcheck.py /app/healthcheck.py
+# COPY script/immich-ultra-sync.py /app/immich-ultra-sync.py
+# COPY script/healthcheck.py /app/healthcheck.py
+
+# Kopiere das GESAMTE script-Verzeichnis, damit alle Module (api.py, utils.py, etc.) da sind
+COPY script/ /app/
+
 
 # Mache die Scripts ausführbar (noch als root)
-RUN chmod +x /app/immich-ultra-sync.py /app/healthcheck.py
+# RUN chmod +x /app/immich-ultra-sync.py /app/healthcheck.py
+
+# Sicherstellen, dass die Dateien dem User 'app' gehören
+RUN chown -R app:app /app && chmod +x /app/*.py
 
 # Jetzt non-root User setzen
 USER app
@@ -42,11 +49,12 @@ USER app
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \ 
   CMD python /app/healthcheck.py
 
+# Immer nur EIN CMD-Befehl. 
 # Standard-Command: Starte das Script mit Default-Args (Simulation)
 # CMD ["python", "/app/immich-ultra-sync.py", "--all", "--dry-run"]
 
 # Standard-Command: Starte das Script mit Default-Args
 CMD ["python", "/app/immich-ultra-sync.py", "--all"]
 
-# Command: hält den Container am laufen für inbound Debuging and tests
+# Command: hält den Container am laufen für inbound Debuging, tests oder manuellem ausführen
 CMD ["sleep", "infinity"]
