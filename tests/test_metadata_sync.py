@@ -18,9 +18,18 @@ import pytest
     not os.getenv("RUN_INTEGRATION_TESTS"), 
     reason="Integration test requires RUN_INTEGRATION_TESTS env var"
 )
-def test_field(field: str, image_path: str, dry_run: bool = True, expected_override: str = None):
+def perform_field_sync_test(field: str, image_path: str, dry_run: bool = True, expected_override: str = None):
     """Testet ein einzelnes Feld. Gibt (success, found_value) zurück."""
-
+    # (Diese Version ab Zeile 21 war unvollständig und wird hier durch die Logik von Zeile 140 ersetzt)
+    if field not in TESTS:
+        log(f"ERROR: Unbekanntes Feld '{field}'. Verfügbare: {list(TESTS.keys())}")
+        return False, ""
+    
+    flag, tags, default_expected = TESTS[field]
+    expected = expected_override or default_expected
+    log(f"Starte Test für Feld '{field}' mit Flag '{flag}' auf Bild '{image_path}' (dry_run={dry_run}, erwartet='{expected}')")
+    
+ 
 
 # Hardcoded Pfade für den Container
 PROJECT_ROOT = Path("/app")
