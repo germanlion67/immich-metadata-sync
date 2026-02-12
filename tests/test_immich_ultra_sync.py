@@ -260,7 +260,7 @@ class AlbumSyncTests(ModuleLoaderMixin):
         
         # Create a mock api_call function
         import unittest.mock as mock
-        with mock.patch.object(self.module, 'api_call', return_value=mock_albums):
+        with mock.patch('api.api_call', return_value=mock_albums):
             album_map = self.module.build_asset_album_map({}, "http://test", "test.log")
         
         # asset1 should be in two albums
@@ -356,13 +356,14 @@ class LogLevelTests(ModuleLoaderMixin):
         self.assertEqual(self.module.LogLevel.ERROR.value, 40)
     
     def test_set_log_level(self):
-        original = self.module._LOG_LEVEL
+        import utils
+        original = utils._LOG_LEVEL
         self.module.set_log_level("DEBUG")
-        self.assertEqual(self.module._LOG_LEVEL, self.module.LogLevel.DEBUG)
+        self.assertEqual(utils._LOG_LEVEL, self.module.LogLevel.DEBUG)
         self.module.set_log_level("ERROR")
-        self.assertEqual(self.module._LOG_LEVEL, self.module.LogLevel.ERROR)
+        self.assertEqual(utils._LOG_LEVEL, self.module.LogLevel.ERROR)
         # Restore original
-        self.module._LOG_LEVEL = original
+        utils._LOG_LEVEL = original
 
 
 class AlbumCacheTests(ModuleLoaderMixin):
