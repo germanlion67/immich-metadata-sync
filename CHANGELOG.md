@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Notes
 - Closes Issue #13: Code- und Wartbarkeits-Optimierungen (refactoring, tests/CI, extended logging, flexible configuration)
+- Version 1.3 was used in documentation; semantic versioning continues with 1.4.0 for the feature-complete release.
+
+## [1.3.0] - 2026-02-11
+
+### Notes
+- Documentation-only version marker (no code changes; aligned documentation with v1.3 label)
 
 ## [1.2.0] - 2026-02-10
 

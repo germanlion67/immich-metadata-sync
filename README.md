@@ -1,6 +1,8 @@
 # 📸 IMMICH ULTRA-SYNC
 *v1.4*
 
+> Versioning note: v1.3 was documentation-only; the current code release is 1.4.0 (see CHANGELOG).
+
 ![Docker Pulls](https://img.shields.io/docker/pulls/germanlion67/immich-metadata-sync)
 
 Syncing Immich metadata back into your original media files.

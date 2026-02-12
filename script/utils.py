@@ -107,12 +107,13 @@ def log(message: str, log_file: str = DEFAULT_LOG_FILE, level: LogLevel = LogLev
     if level.value < _LOG_LEVEL.value:
         return
     
-    ts_plain = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now = datetime.datetime.now()
+    ts_plain = now.strftime("%Y-%m-%d %H:%M:%S")
     level_str = level.name.ljust(7)
 
     if _structured_logs_enabled():
         payload: Dict[str, Any] = {
-            "timestamp": datetime.datetime.now().isoformat(timespec="seconds"),
+            "timestamp": now.isoformat(timespec="seconds"),
             "level": level.name,
             "message": message,
         }
@@ -201,6 +202,23 @@ def load_config(config_file: str = "immich-sync.conf") -> dict:
         'CAPTION_MAX_LEN': str(DEFAULT_CAPTION_MAX_LEN),
     }
 
+    def _decode_value(raw: str) -> str:
+        """Return a decoded config value with matching quotes stripped (dotenv-style)."""
+        decoded = raw
+        if "\\" in raw:
+            escape_map = {
+                "\\n": "\n",
+                "\\t": "\t",
+                "\\\\": "\\",
+                '\\"': '"',
+                "\\'": "'",
+            }
+            for k, v in escape_map.items():
+                decoded = decoded.replace(k, v)
+        if len(decoded) >= 2 and decoded[0] == decoded[-1] and decoded[0] in ("'", '"'):
+            decoded = decoded[1:-1]
+        return decoded
+
     cfg_path = Path(config_file)
     if not cfg_path.exists():
         return defaults
@@ -209,25 +227,30 @@ def load_config(config_file: str = "immich-sync.conf") -> dict:
 
     if suffix == ".json":
         try:
-            data = json.loads(cfg_path.read_text())
+            data = json.loads(cfg_path.read_text(encoding="utf-8"))
             if isinstance(data, dict):
                 for key, value in data.items():
                     if isinstance(key, str):
-                        defaults[key.upper()] = str(value)
-        except Exception:
-            pass
+                        defaults[key.upper()] = _decode_value(str(value))
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError) as exc:
+            log(f"Failed to load JSON config {config_file}: {exc}", DEFAULT_LOG_FILE, LogLevel.WARNING)
         return defaults
 
     if suffix == ".env":
+        # Simple .env parsing; for complex escaping or multiline values, prefer JSON/INI configs.
         try:
-            for line in cfg_path.read_text().splitlines():
+            for line in cfg_path.read_text(encoding="utf-8").splitlines():
                 stripped = line.strip()
                 if not stripped or stripped.startswith("#") or "=" not in stripped:
                     continue
-                key, value = stripped.split("=", 1)
-                defaults[key.strip().upper()] = value.strip().strip('"').strip("'")
-        except Exception:
-            pass
+                if stripped.startswith("export "):
+                    stripped = stripped[len("export "):].strip()
+                key_part, value_part = stripped.split("=", 1)
+                key_clean = key_part.strip().upper()
+                value_clean = _decode_value(value_part.strip())
+                defaults[key_clean] = value_clean
+        except (OSError, UnicodeDecodeError) as exc:
+            log(f"Failed to load .env config {config_file}: {exc}", DEFAULT_LOG_FILE, LogLevel.WARNING)
         return defaults
 
     config = configparser.ConfigParser()
