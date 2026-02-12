@@ -87,8 +87,11 @@ def normalize_caption_limit(value: int) -> int:
 def set_log_level(level: str):
     """Set global log level from string."""
     global _LOG_LEVEL
-    _LOG_LEVEL = LogLevel[level.upper()]
-
+    try:
+        _LOG_LEVEL = LogLevel[level.upper()]
+    except KeyError:
+        # Fallback to INFO if invalid level provided
+        _LOG_LEVEL = LogLevel.INFO
 
 def log(message: str, log_file: str = DEFAULT_LOG_FILE, level: LogLevel = LogLevel.INFO) -> None:
     """Log messages with level filtering."""
