@@ -12,6 +12,15 @@ import os
 import re
 from pathlib import Path
 from datetime import datetime, timedelta
+import pytest
+
+@pytest.mark.skipif(
+    not os.getenv("RUN_INTEGRATION_TESTS"), 
+    reason="Integration test requires RUN_INTEGRATION_TESTS env var"
+)
+def test_field(field: str, image_path: str, dry_run: bool = True, expected_override: str = None):
+    """Testet ein einzelnes Feld. Gibt (success, found_value) zurück."""
+
 
 # Hardcoded Pfade für den Container
 PROJECT_ROOT = Path("/app")
