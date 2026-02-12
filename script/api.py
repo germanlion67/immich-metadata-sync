@@ -96,20 +96,30 @@ def build_asset_album_map(headers: Dict, base_url: str, log_file: str) -> Dict[s
     
     asset_to_albums = {}
     for album in all_albums or []:
-        album_id = album.get("id")
         album_name = album.get("albumName")
-        if not album_id or not album_name:
+        # Skip albums without a name or with empty name
+        if not album_name:
             continue
         
-        # Fetch assets for this album
-        album_details = api_call("GET", f"/albums/{album_id}", headers, base_url, log_file)
-        if album_details:
-            for asset in album_details.get("assets", []):
-                asset_id = asset.get("id")
-                if asset_id:
-                    if asset_id not in asset_to_albums:
-                        asset_to_albums[asset_id] = []
-                    asset_to_albums[asset_id].append(album_name)
+        # Check if assets are already in the album object (for testing or API responses that include them)
+        assets = album.get("assets", [])
+        
+        # If assets not included, fetch album details
+        if not assets:
+            album_id = album.get("id")
+            if not album_id:
+                continue
+            album_details = api_call("GET", f"/albums/{album_id}", headers, base_url, log_file)
+            if album_details:
+                assets = album_details.get("assets", [])
+        
+        # Map each asset to this album
+        for asset in assets:
+            asset_id = asset.get("id")
+            if asset_id:
+                if asset_id not in asset_to_albums:
+                    asset_to_albums[asset_id] = []
+                asset_to_albums[asset_id].append(album_name)
     
     return asset_to_albums
 
