@@ -31,21 +31,21 @@ class ModuleLoaderMixin(unittest.TestCase):
             pass
         
         module = CombinedModule()
-        # Copy attributes from utils
+        # Copy attributes from utils (including private ones for testing)
         for attr in dir(utils):
-            if not attr.startswith('_'):
+            if not attr.startswith('__'):  # Copy private attributes too
                 setattr(module, attr, getattr(utils, attr))
         # Copy attributes from exif
         for attr in dir(exif):
-            if not attr.startswith('_'):
+            if not attr.startswith('__'):
                 setattr(module, attr, getattr(exif, attr))
         # Copy attributes from api
         for attr in dir(api):
-            if not attr.startswith('_'):
+            if not attr.startswith('__'):
                 setattr(module, attr, getattr(api, attr))
         # Copy attributes from main module
         for attr in dir(main_module):
-            if not attr.startswith('_'):
+            if not attr.startswith('__'):
                 setattr(module, attr, getattr(main_module, attr))
         
         cls.module = module
