@@ -5,7 +5,12 @@ import time
 from typing import Any, Dict, List, Optional
 import requests
 
-from .utils import (
+import sys
+import os
+# Add script directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from utils import (
     log, LogLevel, retry_on_failure, chunked, extract_asset_items
 )
 

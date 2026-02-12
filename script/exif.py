@@ -6,7 +6,12 @@ import re
 import subprocess
 from typing import Any, Dict, List, Optional, Tuple
 
-from .utils import (
+import sys
+import os
+# Add script directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from utils import (
     log, LogLevel, extract_error_message,
     DEFAULT_LOG_FILE, DEFAULT_CAPTION_MAX_LEN, VALID_RATING_VALUES,
     GPS_COORDINATE_PRECISION, GPS_ALTITUDE_PRECISION,

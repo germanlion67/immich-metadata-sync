@@ -1,29 +1,54 @@
-import importlib.util
+import sys
 from pathlib import Path
 import unittest
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-MODULE_FILE_PATH = PROJECT_ROOT / "script" / "immich-ultra-sync.py"
-_MODULE_CACHE = None
+SCRIPT_DIR = PROJECT_ROOT / "script"
 
+# Add script directory to path
+sys.path.insert(0, str(SCRIPT_DIR))
 
-def load_module():
-    global _MODULE_CACHE
-    if _MODULE_CACHE is None:
-        spec = importlib.util.spec_from_file_location("immich_ultra_sync_mod", MODULE_FILE_PATH)
-        if spec is None or spec.loader is None:
-            raise ImportError(f"Unable to load module from {MODULE_FILE_PATH}")
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        _MODULE_CACHE = module
-    return _MODULE_CACHE
+# Import modules
+import utils
+import exif
+import api
+
+# Import main script functions
+import importlib.util
+spec = importlib.util.spec_from_file_location("immich_ultra_sync_main", SCRIPT_DIR / "immich-ultra-sync.py")
+if spec is None or spec.loader is None:
+    raise ImportError(f"Unable to load module from {SCRIPT_DIR / 'immich-ultra-sync.py'}")
+main_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(main_module)
 
 
 class ModuleLoaderMixin(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.module = load_module()
+        # Create a mock module that combines all submodules
+        class CombinedModule:
+            pass
+        
+        module = CombinedModule()
+        # Copy attributes from utils
+        for attr in dir(utils):
+            if not attr.startswith('_'):
+                setattr(module, attr, getattr(utils, attr))
+        # Copy attributes from exif
+        for attr in dir(exif):
+            if not attr.startswith('_'):
+                setattr(module, attr, getattr(exif, attr))
+        # Copy attributes from api
+        for attr in dir(api):
+            if not attr.startswith('_'):
+                setattr(module, attr, getattr(api, attr))
+        # Copy attributes from main module
+        for attr in dir(main_module):
+            if not attr.startswith('_'):
+                setattr(module, attr, getattr(main_module, attr))
+        
+        cls.module = module
 
 
 class BuildExifArgsTests(ModuleLoaderMixin):
