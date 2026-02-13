@@ -145,7 +145,7 @@ If you need to set the environment variable yourself, the block `environment`con
 IMMICH_INSTANCE_URL=http://your-immich-instance:2283
 IMMICH_API_KEY=your-api-key-here
 LOG_FILE=/app/logs/immich_ultra_sync.txt
-IMMICH_PHOTO_DIR=/app/library
+IMMICH_PHOTO_DIR=/library
 IMMICH_PATH_SEGMENTS=4
 TZ=Europe/Berlin
 ```
