@@ -19,29 +19,17 @@ COPY --from=builder /etc/perl /etc/perl
 # Installiere Python-Abhängigkeiten (ohne Cache für Sicherheit)
 RUN pip install --no-cache-dir requests tqdm
 
-
 # Arbeitsverzeichnis setzen
 WORKDIR /app
 
-# Gib /app dem User app (für Schreibrechte auf Logs)
-RUN chown -R app:app /app
-
-# Kopiere das Haupt-Script und Healthcheck-Script aus dem Repository
-# COPY script/immich-ultra-sync.py /app/immich-ultra-sync.py
-# COPY script/healthcheck.py /app/healthcheck.py
-
 # Kopiere das GESAMTE script-Verzeichnis, damit alle Module (api.py, utils.py, etc.) da sind
 COPY script/ /app/
-
 
 # Mache die Scripts ausführbar (noch als root)
 # RUN chmod +x /app/immich-ultra-sync.py /app/healthcheck.py
 
 # Sicherstellen, dass die Dateien dem User 'app' gehören
-RUN chown -R app:app /app && chmod +x /app/*.py
-
-# Jetzt non-root User setzen
-USER app
+RUN chmod +x /app/*.py
 
 # Erweiterter Healthcheck: Prüft API-Konnektivität zu Immich
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \ 
@@ -52,7 +40,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 # CMD ["python", "/app/immich-ultra-sync.py", "--all", "--dry-run"]
 
 # Standard-Command: Starte das Script mit Default-Args
-CMD ["python", "/app/immich-ultra-sync.py", "--all"]
+# CMD ["python", "/app/immich-ultra-sync.py", "--all"]
 
 # Command: hält den Container am laufen für inbound Debuging, tests oder manuellem ausführen
 CMD ["sleep", "infinity"]
