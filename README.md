@@ -127,6 +127,29 @@ services:
     restart: unless-stopped
 ```
 
+If you need to set the environment variable yourself, the block `environment`containing must be replaced with `stack.env`
+```diff
+-    environment:
+-      - IMMICH_INSTANCE_URL=http://your-immich-instance:2283
+-      - IMMICH_API_KEY=your-api-key-here
+-      - TZ=Europe/Berlin
+-      - LOG_FILE=/app/logs/immich_ultra_sync.txt
+
++    env_file:
++      - stack.env
+```
+
+
+```yaml
+#Environment variables - Advanced Mode
+IMMICH_INSTANCE_URL=http://your-immich-instance:2283
+IMMICH_API_KEY=your-api-key-here
+LOG_FILE=/app/logs/immich_ultra_sync.txt
+IMMICH_PHOTO_DIR=/app/library
+IMMICH_PATH_SEGMENTS=4
+TZ=Europe/Berlin
+```
+
 Then run:
 ```bash
 docker-compose up -d
