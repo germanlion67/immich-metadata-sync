@@ -159,22 +159,22 @@ docker-compose up -d
 
 ```bash
 # Sync all metadata including albums
-python3 script/immich-ultra-sync.py --all --albums
+python3 immich-ultra-sync.py --all --albums
 
 # Sync only people and albums
-python3 script/immich-ultra-sync.py --people --albums
+python3 immich-ultra-sync.py --people --albums
 
 # Preview what would be synced (dry-run)
-python3 script/immich-ultra-sync.py --all --albums --dry-run --only-new
+python3 immich-ultra-sync.py --all --albums --dry-run --only-new
 
 # Sync people names and face coordinates
-python3 script/immich-ultra-sync.py --people --face-coordinates
+python3 immich-ultra-sync.py --people --face-coordinates
 
 # Resume from previous run
-python3 script/immich-ultra-sync.py --all --resume
+python3 immich-ultra-sync.py --all --resume
 
 # Export statistics
-python3 script/immich-ultra-sync.py --all --export-stats json
+python3 immich-ultra-sync.py --all --export-stats json
 ```
 
 Common flags:
