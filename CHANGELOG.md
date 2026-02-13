@@ -5,6 +5,36 @@ All notable changes to IMMICH ULTRA-SYNC will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-02-13
+
+### Added
+- **Flask web interface** for sync management
+  - Simple web UI to trigger sync operations
+  - Real-time status monitoring with auto-refresh
+  - Configurable sync options through web interface (dry-run, only-new, albums, face-coordinates)
+  - Live log viewing and sync history
+  - Health check endpoint for monitoring
+  - Run with `python3 web_interface.py` (access at http://localhost:5000)
+- **CONTRIBUTING.md** file with contribution guidelines for the community
+  - Development setup instructions
+  - Code style guidelines
+  - Testing requirements
+  - Pull request process documentation
+- **Consolidated runbook.md** with both English and German versions
+  - Uses collapsible sections for easy navigation
+  - Maintains all original content from both language versions
+  - Improved organization and readability
+
+### Changed
+- Updated `requirements.txt` to include Flask dependency (flask>=3.0.0)
+- Documentation improvements across multiple files
+
+### Technical Details
+- Web interface is fully backward compatible - CLI usage remains unchanged
+- Flask app runs on port 5000 by default (configurable via `FLASK_PORT` environment variable)
+- Web interface supports all major sync options available in CLI
+- Security: Web interface includes basic validation and error handling
+
 ## [1.4.0] - 2026-02-12
 
 ### Added

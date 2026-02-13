@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IMMICH ULTRA-SYNC Web Interface</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+        
+        .content {
+            padding: 30px;
+        }
+        
+        .status-card {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .status-card h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .status-item:last-child {
+            border-bottom: none;
+        }
+        
+        .status-label {
+            font-weight: 600;
+            color: #666;
+        }
+        
+        .status-value {
+            color: #333;
+        }
+        
+        .status-running {
+            color: #28a745;
+            font-weight: bold;
+        }
+        
+        .status-idle {
+            color: #6c757d;
+        }
+        
+        .status-error {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        
+        .controls-card {
+            background: white;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .controls-card h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.3em;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            padding: 10px;
+            border-radius: 6px;
+            transition: background 0.2s;
+        }
+        
+        .form-group label:hover {
+            background: #f8f9fa;
+        }
+        
+        .form-group input[type="checkbox"] {
+            margin-right: 10px;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        button {
+            flex: 1;
+            padding: 15px 30px;
+            font-size: 1em;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .btn-secondary:hover:not(:disabled) {
+            background: #5a6268;
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .logs-card {
+            background: #1e1e1e;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        
+        .logs-card h2 {
+            color: #fff;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        
+        .logs-content {
+            background: #000;
+            color: #0f0;
+            font-family: 'Courier New', monospace;
+            padding: 15px;
+            border-radius: 6px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-size: 0.9em;
+        }
+        
+        .spinner {
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top: 3px solid white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-left: 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📸 IMMICH ULTRA-SYNC</h1>
+            <p>Web Interface v1.5</p>
+        </div>
+        
+        <div class="content">
+            <div id="alert-container"></div>
+            
+            <div class="status-card">
+                <h2>Sync Status</h2>
+                <div class="status-item">
+                    <span class="status-label">Current Status:</span>
+                    <span class="status-value" id="current-status">
+                        <span class="status-idle">Idle</span>
+                    </span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Last Run:</span>
+                    <span class="status-value" id="last-run">Never</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Last Result:</span>
+                    <span class="status-value" id="last-result">-</span>
+                </div>
+            </div>
+            
+            <div class="controls-card">
+                <h2>Sync Options</h2>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="only-new" checked>
+                        <span><strong>Only New:</strong> Skip files that already have metadata (recommended)</span>
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="dry-run">
+                        <span><strong>Dry Run:</strong> Preview changes without writing to files</span>
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="albums">
+                        <span><strong>Sync Albums:</strong> Write album information to XMP metadata</span>
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="face-coordinates">
+                        <span><strong>Face Coordinates:</strong> Sync face bounding boxes (MWG-RS regions)</span>
+                    </label>
+                </div>
+                
+                <div class="button-group">
+                    <button class="btn-primary" onclick="startSync()" id="sync-btn">
+                        Start Sync
+                    </button>
+                    <button class="btn-secondary" onclick="refreshStatus()">
+                        Refresh Status
+                    </button>
+                </div>
+            </div>
+            
+            <div class="logs-card">
+                <h2>Recent Logs</h2>
+                <div class="logs-content" id="logs-content">
+                    No logs available. Click "Refresh Status" to load logs.
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let statusCheckInterval = null;
+        
+        function showAlert(message, type = 'info') {
+            const alertContainer = document.getElementById('alert-container');
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+            alertContainer.appendChild(alert);
+            
+            setTimeout(() => {
+                alert.remove();
+            }, 5000);
+        }
+        
+        async function refreshStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const status = await response.json();
+                updateStatusDisplay(status);
+                
+                const logsResponse = await fetch('/api/logs');
+                const logsData = await logsResponse.json();
+                document.getElementById('logs-content').textContent = 
+                    logsData.logs || 'No logs available';
+                    
+            } catch (error) {
+                console.error('Error refreshing status:', error);
+                showAlert('Error refreshing status: ' + error.message, 'error');
+            }
+        }
+        
+        function updateStatusDisplay(status) {
+            const currentStatusEl = document.getElementById('current-status');
+            const lastRunEl = document.getElementById('last-run');
+            const lastResultEl = document.getElementById('last-result');
+            
+            if (status.running) {
+                currentStatusEl.innerHTML = '<span class="status-running">Running <div class="spinner"></div></span>';
+                document.getElementById('sync-btn').disabled = true;
+            } else {
+                currentStatusEl.innerHTML = '<span class="status-idle">Idle</span>';
+                document.getElementById('sync-btn').disabled = false;
+            }
+            
+            if (status.last_run) {
+                const date = new Date(status.last_run);
+                lastRunEl.textContent = date.toLocaleString();
+            } else {
+                lastRunEl.textContent = 'Never';
+            }
+            
+            if (status.last_result) {
+                const resultClass = status.last_result === 'success' ? 'status-running' : 'status-error';
+                lastResultEl.innerHTML = `<span class="${resultClass}">${status.last_result}</span>`;
+            } else {
+                lastResultEl.textContent = '-';
+            }
+        }
+        
+        async function startSync() {
+            const syncBtn = document.getElementById('sync-btn');
+            const options = {
+                dry_run: document.getElementById('dry-run').checked,
+                only_new: document.getElementById('only-new').checked,
+                albums: document.getElementById('albums').checked,
+                face_coordinates: document.getElementById('face-coordinates').checked
+            };
+            
+            syncBtn.disabled = true;
+            syncBtn.innerHTML = 'Syncing... <div class="spinner"></div>';
+            
+            try {
+                const response = await fetch('/api/sync', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(options)
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showAlert('Sync completed successfully!', 'success');
+                    document.getElementById('logs-content').textContent = result.output || 'Sync completed';
+                } else {
+                    showAlert('Sync failed: ' + (result.error || 'Unknown error'), 'error');
+                }
+                
+                await refreshStatus();
+                
+            } catch (error) {
+                console.error('Error starting sync:', error);
+                showAlert('Error starting sync: ' + error.message, 'error');
+            } finally {
+                syncBtn.disabled = false;
+                syncBtn.textContent = 'Start Sync';
+            }
+        }
+        
+        function startStatusPolling() {
+            if (statusCheckInterval) {
+                clearInterval(statusCheckInterval);
+            }
+            statusCheckInterval = setInterval(async () => {
+                await refreshStatus();
+            }, 5000);
+        }
+        
+        refreshStatus();
+        startStatusPolling();
+    </script>
+</body>
+</html>

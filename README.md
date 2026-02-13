@@ -1,7 +1,7 @@
 # 📸 IMMICH ULTRA-SYNC
-*v1.4*
+*v1.5*
 
-> Versioning note: v1.3 was documentation-only; the current code release is 1.4.0 (see CHANGELOG).
+> Versioning note: v1.3 was documentation-only, v1.4.0 was a feature release, and v1.5.0 (current) adds web interface and documentation improvements (see CHANGELOG).
 
 ![Docker Pulls](https://img.shields.io/docker/pulls/germanlion67/immich-metadata-sync)
 
@@ -12,12 +12,15 @@ Syncing Immich metadata back into your original media files.
 - [Requirements](#requirements)
 - [Installation](#installation)
 - [Usage](#usage)
+  - [Web Interface](#-web-interface-new-in-v15)
+  - [Command Line](#command-line-options)
 - [Configuration](#configuration)
 - [Album Synchronization](#album-synchronization)
 - [Face Coordinates (MWG-RS)](#face-coordinates-mwg-rs)
 - [Documentation](#documentation)
 - [Troubleshooting](#troubleshooting)
 - [Development](#development)
+- [Contributing](#contributing)
 
 ## Features
 
@@ -40,6 +43,7 @@ The `--only-new` mode compares desired EXIF values with what is already on disk 
 - Required Python packages:
   - `requests`
   - `tqdm` (optional, for progress bars)
+  - `flask` (optional, for web interface)
 - Docker (optional, for containerized deployment)
 
 ## Installation
@@ -75,10 +79,36 @@ brew install exiftool
 
 3. Install Python dependencies:
 ```bash
-pip install requests tqdm
+pip install requests tqdm flask
 ```
 
 ## Usage
+
+### 🌐 Web Interface (New in v1.5!)
+
+The easiest way to manage sync operations is through the web interface:
+
+```bash
+python3 web_interface.py
+```
+
+Then open http://localhost:5000 in your browser. The web interface provides:
+- Visual status monitoring
+- One-click sync with configurable options
+- Real-time log viewing
+- Sync history tracking
+
+Configure the web server with environment variables:
+- `FLASK_PORT` - Port to run on (default: 5000)
+- `FLASK_HOST` - Host to bind to (default: 127.0.0.1 for localhost only)
+- `FLASK_DEBUG` - Enable debug mode (default: false)
+- `FLASK_SECRET_KEY` - Secret key for session security (recommended for production)
+
+**Security Notes:**
+- The web interface has no authentication - use only on trusted networks
+- Defaults to localhost (127.0.0.1) for security
+- For production use, consider running behind a reverse proxy with authentication
+- Sync operations run synchronously - best suited for smaller libraries or testing
 
 ### Quick Start
 
@@ -309,3 +339,14 @@ python -m unittest discover -s tests -p "test_*.py" -v
 - Logs are written to `immich_ultra_sync.txt` in the script directory
 - Use `--only-new` for repeat runs to minimize disk writes
 - The codebase follows modular design for easier maintenance and testing
+
+## Contributing
+
+We welcome contributions from the community! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for:
+- Code of conduct and contribution guidelines
+- Development setup instructions
+- Testing requirements
+- Pull request process
+- Coding standards
+
+Whether it's bug reports, feature suggestions, or code contributions, your input helps make IMMICH ULTRA-SYNC better for everyone!
