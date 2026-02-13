@@ -5,6 +5,44 @@ All notable changes to IMMICH ULTRA-SYNC will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-02-13
+
+### Added
+- **Flask Web Interface** for sync management
+  - Simple browser-based UI to trigger sync operations
+  - Real-time status monitoring and log viewing
+  - Configurable sync options (People, GPS, Caption, Time, Rating, Albums)
+  - Support for dry-run and only-new flags
+  - Auto-refresh functionality for status and logs
+  - Health check endpoint at `/health`
+  - Accessible via `python3 web_interface.py` (defaults to port 5000)
+- **Consolidated runbook documentation** with bilingual support
+  - Single `runbook.md` file with both English and German versions
+  - Collapsible sections for easy navigation
+  - Maintains all content from previous separate versions
+- **CONTRIBUTING.md** with comprehensive contributor guidelines
+  - Development setup instructions
+  - Code style and testing guidelines
+  - Pull request process and checklist
+  - Project structure documentation
+
+### Changed
+- Updated `requirements.txt` to include Flask and Flask-CORS dependencies
+- Bumped version to 1.5.0 across all relevant files (VERSION, README.md)
+- Enhanced documentation structure for better accessibility
+
+### Technical Details
+- Web interface runs as standalone Flask application
+- Flask dependencies: `flask>=3.0.0`, `flask-cors>=4.0.0`
+- Backend uses subprocess to execute sync operations
+- Backward compatible: existing CLI functionality unchanged
+- Web interface is optional and doesn't affect core sync functionality
+
+### Notes
+- Closes Issue #14: Implementation of missing features (web interface, documentation consolidation, contributor guidelines)
+- All changes are backward compatible
+- Web interface provides convenient alternative to CLI for sync management
+
 ## [1.4.0] - 2026-02-12
 
 ### Added

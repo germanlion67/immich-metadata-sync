@@ -1,7 +1,7 @@
 # 📸 IMMICH ULTRA-SYNC
-*v1.4*
+*v1.5*
 
-> Versioning note: v1.3 was documentation-only; the current code release is 1.4.0 (see CHANGELOG).
+> Versioning note: Latest release is 1.5.0 with web interface, consolidated documentation, and contributor guidelines (see CHANGELOG).
 
 ![Docker Pulls](https://img.shields.io/docker/pulls/germanlion67/immich-metadata-sync)
 
@@ -252,11 +252,56 @@ The `--face-coordinates` flag enables syncing of Immich face detection bounding 
 - Requires Immich API to return face bounding box data in the asset details (available in recent Immich versions)
 - Unnamed persons are skipped
 
+## Web Interface
+
+IMMICH ULTRA-SYNC now includes a simple Flask-based web interface for easier sync management.
+
+### Starting the Web Interface
+
+```bash
+python3 web_interface.py
+```
+
+The interface will be available at `http://localhost:5000` by default.
+
+### Features
+
+- **Visual sync controls:** Start sync operations with customizable options through a user-friendly interface
+- **Real-time status monitoring:** See current sync status and last run information
+- **Log viewer:** View sync logs directly in the browser with auto-refresh
+- **Flexible options:** Choose which metadata types to sync (People, GPS, Caption, Time, Rating, Albums)
+- **Dry run support:** Test sync operations without making changes
+- **Only new files:** Option to skip already-synced files
+
+### Configuration
+
+Environment variables for the web interface:
+
+- `FLASK_HOST` - Host to bind to (default: `0.0.0.0`)
+- `FLASK_PORT` - Port to listen on (default: `5000`)
+- `IMMICH_LOG_FILE` - Path to log file for viewing (default: `/app/immich_ultra_sync.txt`)
+
+### Docker Usage
+
+To use the web interface in Docker, expose port 5000:
+
+```yaml
+ports:
+  - "5000:5000"
+```
+
+Then run:
+
+```bash
+docker exec -it <container> python3 /app/web_interface.py
+```
+
 ## Documentation
 
-- **Docker environment setup:** [runbook.md](runbook.md)  
+- **Docker environment setup:** [runbook.md](runbook.md) (now with English and German versions in one file)
 - **Script reference:** [doc/immich-metadata-sync.md](doc/immich-metadata-sync.md)  
 - **German documentation:** see [doc/de](doc/de/)
+- **Contributing guidelines:** [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Troubleshooting
 
