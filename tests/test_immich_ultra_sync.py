@@ -1,4 +1,7 @@
 import sys
+import os
+import json
+import tempfile
 from pathlib import Path
 import unittest
 
@@ -508,6 +511,23 @@ class ConfigLoaderTests(ModuleLoaderMixin):
         self.assertIn('IMMICH_INSTANCE_URL', config)
         self.assertEqual(config['IMMICH_INSTANCE_URL'], '')
         self.assertEqual(config['IMMICH_PHOTO_DIR'], self.module.DEFAULT_PHOTO_DIR)
+
+    def test_load_config_env_file(self):
+        with tempfile.NamedTemporaryFile("w+", suffix=".env") as tmp:
+            tmp.write("IMMICH_INSTANCE_URL=https://demo.invalid\n")
+            tmp.write("IMMICH_API_KEY=abc123\n")
+            tmp.flush()
+            config = self.module.load_config(tmp.name)
+            self.assertEqual(config["IMMICH_INSTANCE_URL"], "https://demo.invalid")
+            self.assertEqual(config["IMMICH_API_KEY"], "abc123")
+
+    def test_load_config_json_file(self):
+        with tempfile.NamedTemporaryFile("w+", suffix=".json") as tmp:
+            json.dump({"IMMICH_INSTANCE_URL": "https://json.invalid", "IMMICH_LOG_FILE": "test.log"}, tmp)
+            tmp.flush()
+            config = self.module.load_config(tmp.name)
+            self.assertEqual(config["IMMICH_INSTANCE_URL"], "https://json.invalid")
+            self.assertEqual(config["IMMICH_LOG_FILE"], "test.log")
 
 
 class FaceCoordinatesTests(ModuleLoaderMixin):

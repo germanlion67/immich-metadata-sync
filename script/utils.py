@@ -93,14 +93,38 @@ def set_log_level(level: str):
         # Fallback to INFO if invalid level provided
         _LOG_LEVEL = LogLevel.INFO
 
-def log(message: str, log_file: str = DEFAULT_LOG_FILE, level: LogLevel = LogLevel.INFO) -> None:
-    """Log messages with level filtering."""
+def _structured_logs_enabled() -> bool:
+    """Return True when structured (JSON) logging is enabled via environment variables."""
+    log_format = os.getenv("IMMICH_LOG_FORMAT", "").lower()
+    if log_format == "json":
+        return True
+    flag = os.getenv("IMMICH_STRUCTURED_LOGS", "").lower()
+    return flag in ("1", "true", "yes", "on")
+
+
+def log(message: str, log_file: str = DEFAULT_LOG_FILE, level: LogLevel = LogLevel.INFO, extra: Optional[Dict[str, Any]] = None) -> None:
+    """Log messages with level filtering and optional structured output."""
     if level.value < _LOG_LEVEL.value:
         return
     
-    ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now = datetime.datetime.now()
+    ts_plain = now.strftime("%Y-%m-%d %H:%M:%S")
     level_str = level.name.ljust(7)
-    msg = f"[{ts}] [{level_str}] {message}"
+
+    if _structured_logs_enabled():
+        payload: Dict[str, Any] = {
+            "timestamp": now.isoformat(timespec="seconds"),
+            "level": level.name,
+            "message": message,
+        }
+        if extra:
+            payload["extra"] = extra
+        msg = json.dumps(payload, ensure_ascii=False)
+    else:
+        msg = f"[{ts_plain}] [{level_str}] {message}"
+        if extra:
+            msg = f"{msg} | {json.dumps(extra, ensure_ascii=False)}"
+
     print(msg, flush=True)
     try:
         with open(log_file, "a", encoding="utf-8") as f:
@@ -167,7 +191,6 @@ def load_checkpoint(log_file: str) -> set:
 
 def load_config(config_file: str = "immich-sync.conf") -> dict:
     """Load configuration from file."""
-    config = configparser.ConfigParser()
     defaults = {
         'IMMICH_INSTANCE_URL': '',
         'IMMICH_API_KEY': '',
@@ -178,13 +201,64 @@ def load_config(config_file: str = "immich-sync.conf") -> dict:
         'IMMICH_SEARCH_PAGE_SIZE': str(DEFAULT_PAGE_SIZE),
         'CAPTION_MAX_LEN': str(DEFAULT_CAPTION_MAX_LEN),
     }
-    
-    if Path(config_file).exists():
-        config.read(config_file)
-        if 'immich' in config:
-            for key, value in config['immich'].items():
-                defaults[key.upper()] = value
-    
+
+    def _decode_value(raw: str) -> str:
+        """Return a decoded config value with matching quotes stripped (dotenv-style)."""
+        decoded = raw
+        if "\\" in raw:
+            escape_map = {
+                "\\n": "\n",
+                "\\t": "\t",
+                "\\\\": "\\",
+                '\\"': '"',
+                "\\'": "'",
+            }
+            for k, v in escape_map.items():
+                decoded = decoded.replace(k, v)
+        if len(decoded) >= 2 and decoded[0] == decoded[-1] and decoded[0] in ("'", '"'):
+            decoded = decoded[1:-1]
+        return decoded
+
+    cfg_path = Path(config_file)
+    if not cfg_path.exists():
+        return defaults
+
+    suffix = cfg_path.suffix.lower()
+
+    if suffix == ".json":
+        try:
+            data = json.loads(cfg_path.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                for key, value in data.items():
+                    if isinstance(key, str):
+                        defaults[key.upper()] = _decode_value(str(value))
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError) as exc:
+            log(f"Failed to load JSON config {config_file}: {exc}", DEFAULT_LOG_FILE, LogLevel.WARNING)
+        return defaults
+
+    if suffix == ".env":
+        # Simple .env parsing; for complex escaping or multiline values, prefer JSON/INI configs.
+        try:
+            for line in cfg_path.read_text(encoding="utf-8").splitlines():
+                stripped = line.strip()
+                if not stripped or stripped.startswith("#") or "=" not in stripped:
+                    continue
+                if stripped.startswith("export "):
+                    stripped = stripped[len("export "):].strip()
+                key_part, value_part = stripped.split("=", 1)
+                key_clean = key_part.strip().upper()
+                value_clean = _decode_value(value_part.strip())
+                defaults[key_clean] = value_clean
+        except (OSError, UnicodeDecodeError) as exc:
+            log(f"Failed to load .env config {config_file}: {exc}", DEFAULT_LOG_FILE, LogLevel.WARNING)
+        return defaults
+
+    config = configparser.ConfigParser()
+    config.read(config_file)
+    if 'immich' in config:
+        for key, value in config['immich'].items():
+            defaults[key.upper()] = value
+
     return defaults
 
 

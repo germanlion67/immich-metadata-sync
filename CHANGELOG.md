@@ -5,6 +5,21 @@ All notable changes to IMMICH ULTRA-SYNC will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-02-12
+
+### Added
+- Support for `.env` and JSON configuration files via `--config` (alongside existing INI support)
+- Optional structured JSON log output via `IMMICH_LOG_FORMAT=json` or `IMMICH_STRUCTURED_LOGS=true`, including contextual metrics
+
+### Notes
+- Closes Issue #13: Code- und Wartbarkeits-Optimierungen (refactoring, tests/CI, extended logging, flexible configuration)
+- Version 1.3 was used in documentation; semantic versioning continues with 1.4.0 for the feature-complete release.
+
+## [1.3.0] - 2026-02-11
+
+### Notes
+- Documentation-only version marker (no code changes; aligned documentation with v1.3 label)
+
 ## [1.2.0] - 2026-02-10
 
 ### Added
