@@ -1,12 +1,13 @@
-# 📸 IMMICH ULTRA-SYNC
-*v1.5*
+# 📸 IMMICH ULTRA-SYNC 
+*v1.5*  
+**!** This tool requires the image editing program Immich.
 
-> Versioning note: v1.3 was documentation-only, v1.4.0 was a feature release, and v1.5.0 (current) adds web interface and documentation improvements (see CHANGELOG).
+
+> Versioning note: see CHANGELOG.
 
 ![Docker Pulls](https://img.shields.io/docker/pulls/germanlion67/immich-metadata-sync)
 
-Syncing Immich metadata back into your original media files.
-
+Syncing Immich metadata back into your original media files. 
 ## Table of Contents
 - [Features](#features)
 - [Requirements](#requirements)
