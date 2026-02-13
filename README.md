@@ -1,7 +1,7 @@
 # 📸 IMMICH ULTRA-SYNC
 *v1.5*
 
-> Versioning note: v1.3 was documentation-only; v1.4.0 was a feature release. Current version is 1.5.0 (see CHANGELOG).
+> Versioning note: v1.3 was documentation-only, v1.4.0 was a feature release, and v1.5.0 (current) adds web interface and documentation improvements (see CHANGELOG).
 
 ![Docker Pulls](https://img.shields.io/docker/pulls/germanlion67/immich-metadata-sync)
 
