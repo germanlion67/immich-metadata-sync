@@ -23,8 +23,8 @@ RUN pip install --no-cache-dir requests tqdm
 ARG PUID=1000
 ARG PGID=1000
 
-# Erstelle non-root User für Sicherheit
-RUN useradd --create-home --shell /bin/bash app
+# Erstelle non-root User für Sicherheit (aber mit variabler UID/GID)
+RUN useradd --create-home --shell /bin/bash --uid $PUID --gid $PGID app
 
 # Arbeitsverzeichnis setzen
 WORKDIR /app
