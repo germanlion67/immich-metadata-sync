@@ -229,13 +229,13 @@ When `--albums` is enabled, the script maintains a persistent cache of album ass
 **Example:**
 ```bash
 # First run fetches from API and caches the result
-python3 script/immich-ultra-sync.py --all --albums
+python3 immich-ultra-sync.py --all --albums
 
 # Subsequent runs within 24 hours use the cache (much faster)
-python3 script/immich-ultra-sync.py --all --albums
+python3 immich-ultra-sync.py --all --albums
 
 # Force fresh fetch by clearing the cache
-python3 script/immich-ultra-sync.py --all --albums --clear-album-cache
+python3 immich-ultra-sync.py --all --albums --clear-album-cache
 ```
 
 ## Face Coordinates (MWG-RS)
