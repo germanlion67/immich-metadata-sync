@@ -19,12 +19,6 @@ COPY --from=builder /etc/perl /etc/perl
 # Installiere Python-Abhängigkeiten (ohne Cache für Sicherheit)
 RUN pip install --no-cache-dir requests tqdm
 
-# Build-Argumente für UID/GID (Standard: 1000, aber überschreibbar)
-ARG PUID=1000
-ARG PGID=1000
-
-# Erstelle non-root User für Sicherheit (aber mit variabler UID/GID)
-RUN useradd --create-home --shell /bin/bash --uid $PUID --gid $PGID app
 
 # Arbeitsverzeichnis setzen
 WORKDIR /app
