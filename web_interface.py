@@ -329,7 +329,7 @@ HTML_TEMPLATE = """
     </div>
 
     <script>
-        let autoRefreshInterval;
+        let autoRefreshIntervalId;
 
         async function fetchStatus() {
             try {
@@ -439,19 +439,19 @@ HTML_TEMPLATE = """
         }
 
         function startAutoRefresh() {
-            if (autoRefreshInterval) {
-                clearInterval(autoRefreshInterval);
+            if (autoRefreshIntervalId) {
+                clearInterval(autoRefreshIntervalId);
             }
-            autoRefreshInterval = setInterval(() => {
+            autoRefreshIntervalId = setInterval(() => {
                 fetchStatus();
                 fetchLogs();
             }, 3000);
         }
 
         function stopAutoRefresh() {
-            if (autoRefreshInterval) {
-                clearInterval(autoRefreshInterval);
-                autoRefreshInterval = null;
+            if (autoRefreshIntervalId) {
+                clearInterval(autoRefreshIntervalId);
+                autoRefreshIntervalId = null;
             }
         }
 
@@ -537,14 +537,12 @@ def start_sync():
         # Build command
         cmd = ['python3', SYNC_SCRIPT] + options
         
-        # Start process
+        # Start process - output will be written to the configured log file by the script itself
         logger.info(f'Starting sync with command: {" ".join(cmd)}')
         process = subprocess.Popen(
             cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.STDOUT
         )
         
         # Update status
