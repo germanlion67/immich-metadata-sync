@@ -100,8 +100,15 @@ Then open http://localhost:5000 in your browser. The web interface provides:
 
 Configure the web server with environment variables:
 - `FLASK_PORT` - Port to run on (default: 5000)
-- `FLASK_HOST` - Host to bind to (default: 0.0.0.0)
+- `FLASK_HOST` - Host to bind to (default: 127.0.0.1 for localhost only)
 - `FLASK_DEBUG` - Enable debug mode (default: false)
+- `FLASK_SECRET_KEY` - Secret key for session security (recommended for production)
+
+**Security Notes:**
+- The web interface has no authentication - use only on trusted networks
+- Defaults to localhost (127.0.0.1) for security
+- For production use, consider running behind a reverse proxy with authentication
+- Sync operations run synchronously - best suited for smaller libraries or testing
 
 ### Quick Start
 

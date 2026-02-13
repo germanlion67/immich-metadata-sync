@@ -3,6 +3,12 @@
 IMMICH ULTRA-SYNC Web Interface
 
 A simple Flask web interface for managing Immich metadata sync operations.
+
+SECURITY NOTE: This is a basic web interface without authentication.
+For production use, consider:
+- Setting FLASK_SECRET_KEY environment variable
+- Using localhost (127.0.0.1) or implementing authentication
+- Running behind a reverse proxy with authentication
 """
 
 import os
@@ -17,7 +23,13 @@ from flask import Flask, render_template, request, jsonify, send_from_directory
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'script'))
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'dev-secret-key-change-in-production')
+
+# Secret key configuration with security warning
+secret_key = os.environ.get('FLASK_SECRET_KEY')
+if not secret_key:
+    secret_key = 'dev-secret-key-change-in-production'
+    print("WARNING: Using default development secret key. Set FLASK_SECRET_KEY environment variable for production!")
+app.config['SECRET_KEY'] = secret_key
 
 # Global variable to store sync status
 sync_status = {
@@ -45,7 +57,13 @@ def get_status():
 
 @app.route('/api/sync', methods=['POST'])
 def trigger_sync():
-    """Trigger a sync operation."""
+    """
+    Trigger a sync operation.
+    
+    NOTE: This runs synchronously and blocks the request for the duration of the sync.
+    For large libraries, consider running the CLI directly in the background.
+    The web interface is best suited for smaller libraries or testing.
+    """
     global sync_status
     
     if sync_status['running']:
@@ -141,10 +159,14 @@ if __name__ == '__main__':
     
     # Run the Flask app
     port = int(os.environ.get('FLASK_PORT', 5000))
-    host = os.environ.get('FLASK_HOST', '0.0.0.0')
+    # Default to localhost for security - use 0.0.0.0 only if explicitly set
+    host = os.environ.get('FLASK_HOST', '127.0.0.1')
     debug = os.environ.get('FLASK_DEBUG', 'false').lower() == 'true'
     
     print(f"Starting IMMICH ULTRA-SYNC Web Interface on {host}:{port}")
+    if host == '0.0.0.0':
+        print("WARNING: Binding to 0.0.0.0 exposes the web interface to all network interfaces.")
+        print("         Consider using 127.0.0.1 or implement authentication for production use.")
     print(f"Open http://localhost:{port} in your browser")
     
     app.run(host=host, port=port, debug=debug)
