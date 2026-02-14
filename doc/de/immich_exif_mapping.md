@@ -3,13 +3,13 @@
 Diese zeigt die Zuordnung zwischen Immich-API-Feldern (aus Asset-Details und Album-Informationen) und den entsprechenden EXIF/XMP-Feldern, die in die Bilddateien geschrieben werden.
 Sie ist erweiterbar – füge einfach neue Zeilen oder Spalten hinzu (z.B. für weitere Details wie "API-Endpunkt" oder "Test-Status").
 
-| Immich-Feld | EXIF/XMP-Feld | Beschreibung | Beispiel | Status | Notizen |
+| Immich-Feld | EXIF/XMP-Feld | Beschreibung | Beispiel | Datei | XnView MP |
 |-------------|---------------|--------------|----------|--------|---------|
-| `people[].name` (aus Asset-Details) | `XMP:Subject`<br>`IPTC:Keywords`<br>`XMP-iptcExt:PersonInImage` | Erkannte Personen werden als Keywords und Person-In-Image-Liste geschrieben. | Person: "Alice" → "Alice" in allen Feldern | Implementiert | Hochpriorität; unterstützt mehrere Personen pro Asset. |
-| `exifInfo.latitude` | `GPSLatitude` | GPS-Breitengrad aus EXIF-Info. | 51.5074 | Implementiert | Präzision auf 6 Dezimalstellen gerundet. |
-| `exifInfo.longitude` | `GPSLongitude` | GPS-Längengrad aus EXIF-Info. | -0.1278 | Implementiert | Präzision auf 6 Dezimalstellen gerundet. |
-| `exifInfo.altitude` | `GPSAltitude` | Höhe über Meeresspiegel aus EXIF-Info. | 50 | Implementiert | Als Meter; Fallback auf 0, wenn nicht verfügbar. |
-| `exifInfo.description` | `XMP:Description`<br>`IPTC:Caption-Abstract` | Beschreibung/Kaption des Assets. | "Sunset at the beach" | Implementiert | Max. Länge 2000 Zeichen; Zeilenumbrüche werden zu Leerzeichen. |
+| `people[].name` (aus Asset-Details) | `XMP:Subject`<br>`IPTC:Keywords`<br>`XMP-iptcExt:PersonInImage` | Erkannte Personen werden als Keywords und Person-In-Image-Liste geschrieben. Unterstützt mehrere Personen pro Asset | Person: "Alice" → "Alice" in allen Feldern | Markierung | ja |
+| `exifInfo.latitude` | `GPSLatitude` | GPS-Breitengrad aus EXIF-Info. auf 6 Dezimalstellen gerundet  | 51.5074 | Breitengrad | Ja |
+| `exifInfo.longitude` | `GPSLongitude` | GPS-Längengrad aus EXIF-Info. | -0.1278 | Längengrad | Ja |
+| `exifInfo.altitude` | `GPSAltitude` | Höhe über Meeresspiegel aus EXIF-Info. | 50 | Höhe über Normal-Null | Ja |
+| `exifInfo.description` | `XMP:Description`<br>`IPTC:Caption-Abstract` | Beschreibung/Kaption des Assets. Max. Länge 2000 Zeichen; Zeilenumbrüche werden zu Leerzeichen. | "Sunset at the beach" | Titel | Ja |
 | `fileCreatedAt` oder `exifInfo.dateTimeOriginal` | `DateTimeOriginal`<br>`CreateDate`<br>`XMP:CreateDate`<br>`XMP-photoshop:DateCreated` | Zeitstempel der Dateierstellung oder EXIF-Aufnahmezeit. | 2023-10-01 15:30:00 (formatiert) | Implementiert | Robustes Parsing; Fallback auf String-Formatierung. |
 | `isFavorite` (Asset) | `Rating` | Favoriten-Status als Stern-Rating (5 für Favorit, 0 sonst). | true → 5 | Implementiert | Nur 0 oder 5; keine Zwischenwerte. |
 | Album-Name (aus Album-API) | `XMP-iptcExt:Event`<br>`XMP:HierarchicalSubject` | Album-Name als Event (primäres Album) und hierarchische Keywords (alle Alben). | Album: "Vacation" → "Vacation" in Event, "Albums|Vacation" in HierarchicalSubject | Implementiert (neu) | Erfordert separate API-Calls; Präfix "Albums|" für Hierarchie. |
