@@ -3,7 +3,7 @@
 Diese zeigt die Zuordnung zwischen Immich-API-Feldern (aus Asset-Details und Album-Informationen) und den entsprechenden EXIF/XMP-Feldern, die in die Bilddateien geschrieben werden.
 Sie ist erweiterbar – füge einfach neue Zeilen oder Spalten hinzu (z.B. für weitere Details wie "API-Endpunkt" oder "Test-Status").
 
-| Immich-Feld | EXIF/XMP-Feld | Beschreibung | Beispiel | Datei | XnView MP |
+| Immich-Feld | EXIF/XMP-Feld | Beschreibung | Beispiel | Datei (Win11) | XnView MP |
 |-------------|---------------|--------------|----------|--------|---------|
 | `people[].name` (aus Asset-Details) | `XMP:Subject`<br>`IPTC:Keywords`<br>`XMP-iptcExt:PersonInImage` | Erkannte Personen werden als Keywords und Person-In-Image-Liste geschrieben. Unterstützt mehrere Personen pro Asset | Person: "Alice" → "Alice" in allen Feldern | Markierung | ja |
 | `exifInfo.latitude` | `GPSLatitude` | GPS-Breitengrad aus EXIF-Info. auf 6 Dezimalstellen gerundet  | 51.5074 | Breitengrad | Ja |
@@ -16,6 +16,7 @@ Sie ist erweiterbar – füge einfach neue Zeilen oder Spalten hinzu (z.B. für 
 | Album-Beschreibung (aus Album-API) | `XMP-iptcExt:Event` <br> `XMP:HierarchicalSubject` <br> `EXIF:UserComment`| Potenziell in `XMP:Description` oder separates Feld. | "Testalbum Beschreibung" | Kommentare | Ja |
 | `people[].faces[].boundingBox*` + `imageWidth/imageHeight` (aus Asset-Details) | `RegionInfo` (MWG-RS XMP Region Structure) | Gesichtserkennungs-Koordinaten als MWG-RS-Regionen (Typ=Face). Bounding-Box wird auf normalisierte Koordinaten (X/Y-Mittelpunkt, W/H) konvertiert. | BBox (100,200,300,400) bei 4000×3000 → X=0.05, Y=0.1, W=0.05, H=0.067 | Implementiert | Opt-in via `--face-coordinates`; kompatibel mit Lightroom, digiKam u.a. |
 | Andere (z.B. Tags) | (noch nicht zugewiesen) | Platz für weitere Immich-Felder wie Tags oder Standort-Details. | - | Geplant | Abhängig von API-Verfügbarkeit und Nutzer-Feedback. |
+| leere Felder | | | | Betreff, Autoren, Copyright | |
 
 ## Die Spalten sind: 
 - **Immich-Feld:** Das Feld aus der Immich-API (z.B. aus /assets/{id} oder Album-Details).
