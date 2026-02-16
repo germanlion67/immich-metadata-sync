@@ -1,0 +1,42 @@
+name: Build and Push Test Docker Image (PR)
+
+on:
+  pull_request:
+    branches: [ main ]  # Nur bei PRs gegen main
+
+jobs:
+  build-and-push-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Extract metadata for test image
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: germanlion67/immich-metadata-sync
+        tags: |
+          type=raw,value=test-pr-${{ github.event.number }}  # Eindeutiger Tag: test-pr-<PR-Nummer>
+          type=raw,value=test-branch-${{ github.head_ref }}  # Optional: test-branch-<branch-name>
+
+    - name: Build and push test image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true  # false läd nicht auf Dockerhub hoch
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+
+    # Optional: Grundtest des Images (z. B. Container starten und Script prüfen)
+    - name: Test the built image
+      run: |
+        docker run --rm ${{ steps.meta.outputs.tags }} python --version  # Beispiel: Prüfe Python
+        # Hier könntest du erweitern: z. B. docker run mit --dry-run, aber ohne Volumes ist es limitiert
