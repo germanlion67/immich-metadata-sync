@@ -302,8 +302,19 @@ The `--face-coordinates` flag enables syncing of Immich face detection bounding 
 - Check network connectivity between the script and Immich instance
 
 **Files not found:**
+- The script now performs automatic validation of `IMMICH_PHOTO_DIR` at startup
+- If the directory doesn't exist or is empty, the script will exit with helpful error messages
+- During processing, if >90% of assets have "file not found" errors, the script will log warnings about potential mount/configuration issues
 - Ensure `PHOTO_DIR` points to the correct library mount
 - Check path segments configuration (`IMMICH_PATH_SEGMENTS`)
+- Verify Docker volume mounts match your `IMMICH_PHOTO_DIR` configuration
+- Example: If Immich stores files in `/mnt/media/library` on the host, use volume mount `/mnt/media/library:/library` and set `IMMICH_PHOTO_DIR=/library`
+
+**Path segment mismatches:**
+- If >50% of assets have path segment mismatches, the script will log detailed troubleshooting hints
+- Check the structure of `originalPath` in Immich (visible in asset details)
+- Set `IMMICH_PATH_SEGMENTS` to match the number of path components after your mount point
+- Example: For path `library/user/2024/photo.jpg` with `IMMICH_PHOTO_DIR=/library`, set `IMMICH_PATH_SEGMENTS=3`
 
 **Performance issues:**
 - Use `--only-new` to skip already-synced files

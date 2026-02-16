@@ -23,6 +23,7 @@ from utils import (
     sanitize_path, validate_path_in_boundary, chunked,
     get_env_int, normalize_caption_limit,
     load_album_cache, load_stale_album_cache, save_album_cache, clear_album_cache,
+    validate_photo_directory, check_mount_issues,
     DEFAULT_PHOTO_DIR, DEFAULT_LOG_FILE, DEFAULT_PATH_SEGMENTS, MAX_PATH_SEGMENTS,
     DEFAULT_BATCH_SIZE, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE,
     DEFAULT_CAPTION_MAX_LEN, DEFAULT_ALBUM_CACHE_TTL, DEFAULT_ALBUM_CACHE_MAX_STALE,
@@ -81,7 +82,12 @@ def process_asset(
             log_file,
             LogLevel.DEBUG,
         )
-        return "skipped"
+        log(
+            f'HINT: Adjust IMMICH_PATH_SEGMENTS to {parts_count} or verify your mount structure matches the expected path depth.',
+            log_file,
+            LogLevel.DEBUG,
+        )
+        return "path_segment_mismatch"
 
     if any(part.startswith('/') or part.startswith('\\') for part in path_parts):
         log(f"SECURITY ERROR: Absolute path component detected for asset {asset_id}", log_file, LogLevel.ERROR)
@@ -100,7 +106,8 @@ def process_asset(
 
     if not os.path.exists(full_path):
         log(f"Skipping asset {asset_id}: file not found at {full_path}", log_file, LogLevel.DEBUG)
-        return "skipped"
+        log(f"HINT: Verify IMMICH_PHOTO_DIR is set correctly (current: {photo_dir})", log_file, LogLevel.DEBUG)
+        return "file_not_found"
 
     exif_args, change_list = build_exif_args(asset, details, active_modes, caption_max_len, album_map)
     if not change_list:
@@ -255,6 +262,12 @@ def main() -> None:
         log("ABORT: ExifTool is not available. Please install ExifTool.", log_file, LogLevel.ERROR)
         sys.exit(1)
 
+    # Validate photo directory before starting
+    log(f"Validating photo directory: {photo_dir}", log_file, LogLevel.INFO)
+    if not validate_photo_directory(photo_dir, log_file):
+        log("ABORT: Photo directory validation failed. Please check your configuration.", log_file, LogLevel.ERROR)
+        sys.exit(1)
+
     # Initialize ExifTool in stay-open mode
     exiftool = ExifToolHelper()
     exiftool.start()
@@ -282,7 +295,15 @@ def main() -> None:
     )
 
     assets = fetch_assets(headers, base_url, page_size, log_file)
-    statistics = {"total": len(assets), "updated": 0, "simulated": 0, "skipped": 0, "errors": 0}
+    statistics = {
+        "total": len(assets),
+        "updated": 0,
+        "simulated": 0,
+        "skipped": 0,
+        "file_not_found": 0,
+        "path_segment_mismatch": 0,
+        "errors": 0
+    }
     log(f"{statistics['total']} assets loaded. Starting synchronization...", log_file, LogLevel.INFO)
 
     # Build album map if needed (before processing assets) with caching
@@ -394,9 +415,14 @@ def main() -> None:
         Path(CHECKPOINT_FILE).unlink()
         log("Checkpoint removed after successful completion", log_file, LogLevel.INFO)
 
+    # Check for potential mount/path configuration issues
+    check_mount_issues(statistics, log_file, photo_dir, path_segments)
+
     log(
         f"FINISH: Total:{statistics['total']} Updated:{statistics['updated']} "
-        f"Simulated:{statistics['simulated']} Skipped:{statistics['skipped']} Errors:{statistics['errors']}",
+        f"Simulated:{statistics['simulated']} Skipped:{statistics['skipped']} "
+        f"FileNotFound:{statistics['file_not_found']} PathMismatch:{statistics['path_segment_mismatch']} "
+        f"Errors:{statistics['errors']}",
         log_file,
         LogLevel.INFO,
         extra={"statistics": statistics},
