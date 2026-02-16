@@ -98,7 +98,18 @@ Das Projekt verfügt nun über automatisierte Tests und CI/CD:
 
 ## Fehlersuche
 - **Kein API-Response**: Prüfe `IMMICH_INSTANCE_URL`, API-Key, Netzwerk; das Skript versucht `/api`- und Root-Pfad.  
-- **Datei nicht gefunden**: Stimmt das Mapping `/library/<jahr>/<monat>/<datei>` mit Immichs `originalPath`? Mount prüfen.  
+- **Datei nicht gefunden**: 
+  - Das Skript validiert jetzt automatisch `IMMICH_PHOTO_DIR` beim Start
+  - Falls das Verzeichnis nicht existiert oder leer ist, bricht das Skript mit hilfreichen Fehlermeldungen ab
+  - Bei >90% "file not found"-Fehlern während der Verarbeitung werden automatisch Warnungen zu möglichen Mount-/Konfigurationsproblemen ausgegeben
+  - Stimmt das Mapping `/library/<jahr>/<monat>/<datei>` mit Immichs `originalPath`? Mount prüfen.
+  - Stelle sicher, dass Docker-Volume-Mounts mit deiner `IMMICH_PHOTO_DIR`-Konfiguration übereinstimmen
+  - Beispiel: Wenn Immich Dateien in `/mnt/media/library` speichert, verwende Volume-Mount `/mnt/media/library:/library` und setze `IMMICH_PHOTO_DIR=/library`
+- **Path-Segment-Fehler**:
+  - Bei >50% Path-Segment-Fehlern gibt das Skript detaillierte Hinweise zur Problembehebung aus
+  - Prüfe die Struktur von `originalPath` in Immich (sichtbar in Asset-Details)
+  - Setze `IMMICH_PATH_SEGMENTS` auf die Anzahl der Pfadkomponenten nach deinem Mount-Point
+  - Beispiel: Für Pfad `library/user/2024/photo.jpg` mit `IMMICH_PHOTO_DIR=/library`, setze `IMMICH_PATH_SEGMENTS=3`
 - **Keine People/GPS**: Immich-Asset hat evtl. keine erkannten Personen oder GPS-Daten; `change_list` bleibt leer → Datei wird übersprungen.  
 - **Langsame Läufe**: Nutze `--only-new` (wenn Rating aktiviert) oder `--dry-run` zum Testen.
 

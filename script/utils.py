@@ -578,6 +578,11 @@ def validate_photo_directory(photo_dir: str, log_file: str) -> bool:
             return False
     except PermissionError:
         log(f"ERROR: No permission to read photo directory: {photo_dir}", log_file, LogLevel.ERROR)
+        log(f"HINT: Check file permissions and ensure the container user has read access.", log_file, LogLevel.ERROR)
+        return False
+    except (OSError, IOError) as e:
+        log(f"ERROR: I/O error while checking photo directory: {e}", log_file, LogLevel.ERROR)
+        log(f"HINT: This may indicate filesystem issues or network mount problems.", log_file, LogLevel.ERROR)
         return False
     except Exception as e:
         log(f"ERROR: Failed to check photo directory contents: {e}", log_file, LogLevel.ERROR)
@@ -636,7 +641,7 @@ def check_mount_issues(statistics: dict, log_file: str, photo_dir: str, path_seg
             LogLevel.WARNING
         )
         log(
-            f"  4. Example: If Immich uses '/mnt/media/library', mount it as '/mnt/media/library:/library' and set IMMICH_PHOTO_DIR=/library",
+            f"  4. Example: If Immich uses '/mnt/media/library' on the host, mount it as '-v /mnt/media/library:/library' and set IMMICH_PHOTO_DIR=/library in the container",
             log_file,
             LogLevel.WARNING
         )

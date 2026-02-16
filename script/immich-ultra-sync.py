@@ -296,10 +296,10 @@ def main() -> None:
 
     assets = fetch_assets(headers, base_url, page_size, log_file)
     statistics = {
-        "total": len(assets), 
-        "updated": 0, 
-        "simulated": 0, 
-        "skipped": 0, 
+        "total": len(assets),
+        "updated": 0,
+        "simulated": 0,
+        "skipped": 0,
         "file_not_found": 0,
         "path_segment_mismatch": 0,
         "errors": 0
