@@ -532,3 +532,160 @@ def clear_album_cache(log_file: str) -> bool:
 def extract_asset_items(raw: Any) -> List[Dict[str, Any]]:
     """Return assets.items list from a search response or an empty list when absent."""
     return raw.get("assets", {}).get("items", []) if isinstance(raw, dict) else []
+
+
+def validate_photo_directory(photo_dir: str, log_file: str) -> bool:
+    """
+    Validate that the photo directory exists and is not empty.
+    Returns True if valid, False if issues detected.
+    Logs helpful hints for common configuration problems.
+    """
+    # Check if directory exists
+    if not os.path.exists(photo_dir):
+        log(f"ERROR: Photo directory does not exist: {photo_dir}", log_file, LogLevel.ERROR)
+        log(
+            f"HINT: Check if IMMICH_PHOTO_DIR is correctly set and matches the Docker mount point.",
+            log_file,
+            LogLevel.ERROR
+        )
+        log(
+            f"HINT: If running in Docker, ensure the library volume is properly mounted (e.g., '/path/to/library:/library').",
+            log_file,
+            LogLevel.ERROR
+        )
+        return False
+    
+    # Check if directory is actually a directory
+    if not os.path.isdir(photo_dir):
+        log(f"ERROR: Photo directory path exists but is not a directory: {photo_dir}", log_file, LogLevel.ERROR)
+        return False
+    
+    # Check if directory is empty (potential mount issue)
+    try:
+        contents = os.listdir(photo_dir)
+        if not contents:
+            log(f"WARNING: Photo directory is empty: {photo_dir}", log_file, LogLevel.WARNING)
+            log(
+                f"HINT: This might indicate a mount problem. Verify that your library is properly mounted in the container.",
+                log_file,
+                LogLevel.WARNING
+            )
+            log(
+                f"HINT: Check Docker volume configuration and ensure the host path contains your photo library.",
+                log_file,
+                LogLevel.WARNING
+            )
+            return False
+    except PermissionError:
+        log(f"ERROR: No permission to read photo directory: {photo_dir}", log_file, LogLevel.ERROR)
+        return False
+    except Exception as e:
+        log(f"ERROR: Failed to check photo directory contents: {e}", log_file, LogLevel.ERROR)
+        return False
+    
+    log(f"Photo directory validated: {photo_dir} ({len(contents)} items)", log_file, LogLevel.INFO)
+    return True
+
+
+def check_mount_issues(statistics: dict, log_file: str, photo_dir: str, path_segments: int) -> None:
+    """
+    Analyze statistics to detect potential mount or path configuration issues.
+    Logs helpful hints if high percentage of file-not-found errors detected.
+    """
+    total = statistics.get('total', 0)
+    file_not_found = statistics.get('file_not_found', 0)
+    path_segment_mismatch = statistics.get('path_segment_mismatch', 0)
+    
+    if total == 0:
+        return
+    
+    # Calculate percentages
+    file_not_found_pct = (file_not_found / total) * 100
+    path_mismatch_pct = (path_segment_mismatch / total) * 100
+    
+    # Check for high rate of file-not-found errors (>90%)
+    if file_not_found_pct > 90:
+        log(
+            f"WARNING: {file_not_found_pct:.1f}% of assets ({file_not_found}/{total}) were skipped due to files not being found.",
+            log_file,
+            LogLevel.WARNING
+        )
+        log(
+            f"SUSPECTED ISSUE: Library might not be properly mounted or IMMICH_PHOTO_DIR is incorrectly configured.",
+            log_file,
+            LogLevel.WARNING
+        )
+        log(
+            f"TROUBLESHOOTING STEPS:",
+            log_file,
+            LogLevel.WARNING
+        )
+        log(
+            f"  1. Verify IMMICH_PHOTO_DIR is set to: {photo_dir}",
+            log_file,
+            LogLevel.WARNING
+        )
+        log(
+            f"  2. Check if files exist in this directory on the host system.",
+            log_file,
+            LogLevel.WARNING
+        )
+        log(
+            f"  3. If running in Docker, verify volume mount matches IMMICH_PHOTO_DIR.",
+            log_file,
+            LogLevel.WARNING
+        )
+        log(
+            f"  4. Example: If Immich uses '/mnt/media/library', mount it as '/mnt/media/library:/library' and set IMMICH_PHOTO_DIR=/library",
+            log_file,
+            LogLevel.WARNING
+        )
+    elif file_not_found_pct > 50:
+        log(
+            f"WARNING: {file_not_found_pct:.1f}% of assets ({file_not_found}/{total}) were not found.",
+            log_file,
+            LogLevel.WARNING
+        )
+        log(
+            f"HINT: Check IMMICH_PHOTO_DIR configuration and Docker mount settings.",
+            log_file,
+            LogLevel.WARNING
+        )
+    
+    # Check for high rate of path segment mismatches (>50%)
+    if path_mismatch_pct > 50:
+        log(
+            f"WARNING: {path_mismatch_pct:.1f}% of assets ({path_segment_mismatch}/{total}) have path segment mismatches.",
+            log_file,
+            LogLevel.WARNING
+        )
+        log(
+            f"SUSPECTED ISSUE: IMMICH_PATH_SEGMENTS might be incorrectly configured.",
+            log_file,
+            LogLevel.WARNING
+        )
+        log(
+            f"TROUBLESHOOTING STEPS:",
+            log_file,
+            LogLevel.WARNING
+        )
+        log(
+            f"  1. Current IMMICH_PATH_SEGMENTS is set to: {path_segments}",
+            log_file,
+            LogLevel.WARNING
+        )
+        log(
+            f"  2. Check the structure of originalPath in Immich (e.g., 'library/user/2024/photo.jpg').",
+            log_file,
+            LogLevel.WARNING
+        )
+        log(
+            f"  3. Set IMMICH_PATH_SEGMENTS to match the number of path components after the mount point.",
+            log_file,
+            LogLevel.WARNING
+        )
+        log(
+            f"  4. Example: For 'library/user/2024/photo.jpg', if IMMICH_PHOTO_DIR=/library, set IMMICH_PATH_SEGMENTS=3 (user/2024/photo.jpg).",
+            log_file,
+            LogLevel.WARNING
+        )

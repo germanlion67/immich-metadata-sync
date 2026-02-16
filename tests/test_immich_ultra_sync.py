@@ -739,5 +739,76 @@ class FaceCoordinatesTests(ModuleLoaderMixin):
         )
 
 
+class DirectoryValidationTests(ModuleLoaderMixin):
+    """Tests for directory validation and mount error detection."""
+    
+    def test_validate_photo_directory_exists(self):
+        """Test validation of an existing directory with contents."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create a file in the directory
+            test_file = Path(tmpdir) / "test.jpg"
+            test_file.write_text("test")
+            
+            result = self.module.validate_photo_directory(tmpdir, "test.log")
+            self.assertTrue(result)
+    
+    def test_validate_photo_directory_nonexistent(self):
+        """Test validation fails for non-existent directory."""
+        result = self.module.validate_photo_directory("/nonexistent/path/xyz", "test.log")
+        self.assertFalse(result)
+    
+    def test_validate_photo_directory_empty(self):
+        """Test validation warns for empty directory."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = self.module.validate_photo_directory(tmpdir, "test.log")
+            self.assertFalse(result)
+    
+    def test_validate_photo_directory_not_a_directory(self):
+        """Test validation fails when path is a file, not a directory."""
+        with tempfile.NamedTemporaryFile() as tmpfile:
+            result = self.module.validate_photo_directory(tmpfile.name, "test.log")
+            self.assertFalse(result)
+    
+    def test_check_mount_issues_high_file_not_found(self):
+        """Test mount issue detection when >90% files not found."""
+        stats = {
+            'total': 100,
+            'file_not_found': 95,
+            'path_segment_mismatch': 0
+        }
+        # Should not raise, just log warnings
+        self.module.check_mount_issues(stats, "test.log", "/library", 3)
+    
+    def test_check_mount_issues_high_path_mismatch(self):
+        """Test detection when >50% have path segment mismatches."""
+        stats = {
+            'total': 100,
+            'file_not_found': 0,
+            'path_segment_mismatch': 60
+        }
+        # Should not raise, just log warnings
+        self.module.check_mount_issues(stats, "test.log", "/library", 3)
+    
+    def test_check_mount_issues_low_errors(self):
+        """Test no warnings when error rates are low."""
+        stats = {
+            'total': 100,
+            'file_not_found': 10,
+            'path_segment_mismatch': 5
+        }
+        # Should not raise, should not log warnings
+        self.module.check_mount_issues(stats, "test.log", "/library", 3)
+    
+    def test_check_mount_issues_zero_total(self):
+        """Test that function handles zero total gracefully."""
+        stats = {
+            'total': 0,
+            'file_not_found': 0,
+            'path_segment_mismatch': 0
+        }
+        # Should not raise
+        self.module.check_mount_issues(stats, "test.log", "/library", 3)
+
+
 if __name__ == "__main__":
     unittest.main()
