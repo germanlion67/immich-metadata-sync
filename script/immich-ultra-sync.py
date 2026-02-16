@@ -121,7 +121,7 @@ def process_asset(
         
         if normalized_current != normalized_desired:
             # DEBUG: Uncomment for troubleshooting
-            # log(f"DEBUG {clean_rel}: Tag={tag} | Current='{normalized_current}' | Desired='{normalized_desired}'", log_file, LogLevel.DEBUG)
+            log(f"DEBUG {clean_rel}: Tag={tag} | Current='{normalized_current}' | Desired='{normalized_desired}'", log_file, LogLevel.DEBUG)
             fields_to_update.append(tag)
 
     # For --only-new mode: skip if ANY value already exists
