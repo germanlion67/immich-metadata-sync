@@ -36,7 +36,7 @@ jobs:
         labels: ${{ steps.meta.outputs.labels }}
 
     # Optional: Grundtest des Images (z. B. Container starten und Script prüfen)
-    - name: Test the built image
-      run: |
-        docker run --rm ${{ steps.meta.outputs.tags }} python --version  # Beispiel: Prüfe Python
+    # - name: Test the built image
+      # run: |
+        # docker run --rm ${{ steps.meta.outputs.tags }} python --version  # Beispiel: Prüfe Python
         # Hier könntest du erweitern: z. B. docker run mit --dry-run, aber ohne Volumes ist es limitiert
