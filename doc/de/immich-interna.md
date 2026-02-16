@@ -31,3 +31,22 @@ LOG_FILE=/app/logs/immich_ultra_sync.txt
 IMMICH_PHOTO_DIR=/app/library
 IMMICH_PATH_SEGMENTS=4
 ```
+
+***
+Die `--people`-Option in `immich-ultra-sync.py` synchronisiert erkannte Personennamen aus Immich in die EXIF/XMP-Metadaten der Mediendatei. Konkret:
+
+- **Was geschrieben wird:** Die Namen der mit dem Asset in Immich verknüpften Personen werden gesammelt und als komma-getrennte Liste (z. B. "Alice,Bob") in folgende Metadatenfelder geschrieben:
+
+ - `XMP:Subject`
+- `IPTC:Keywords`
+- `XMP-iptcExt:PersonInImage` 
+  
+- **Wann geschrieben wird:** Das Skript schreibt/aktualisiert Metadaten nur, wenn:
+
+- Das Asset Personendaten in Immich hat (nicht-leere Liste von Namen).
+- Die aktuellen Metadaten in der Datei von den gewünschten Werten aus Immich abweichen.
+- `--only-new` nicht verwendet wird (was Dateien überspringt, die bereits beliebige EXIF-Daten haben).
+- Nicht im Dry-Run-Modus.
+Das Skript vergleicht aktuelle vs. gewünschte Werte, indem es vorhandene Metadaten aus der Datei mit ExifTool's JSON-Ausgabe liest, beide Seiten normalisiert und auf Unterschiede prüft. Wenn sie übereinstimmen, erfolgt kein Schreibvorgang.
+
+
