@@ -4,6 +4,13 @@ on:
   pull_request:
     branches: [ main ]  # Nur bei PRs gegen main
 
+  workflow_dispatch:  # Füge das hinzu für manuelle Auslösung
+    inputs:
+      pr_number:
+        description: 'PR-Nummer für Test-Tag (z.B. 22)'
+        required: false
+        default: 'manual'
+
 jobs:
   build-and-push-test:
     runs-on: ubuntu-latest
