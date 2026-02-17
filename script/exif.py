@@ -69,6 +69,76 @@ class ExifToolHelper:
             self.process.stdin.flush()
             self.process.wait()
 
+# overwride sidcar
+def execute_with_sidecar_and_msphoto(args: list, full_path: str, exif_tool_helper: ExifToolHelper, log_file: str) -> tuple:
+    """
+    Execute ExifTool write with sidecar-awareness and MicrosoftPhoto:Rating fallback.
+
+    - If a .xmp sidecar exists it will be read and its previous rating logged.
+    - JPG and sidecar are written together to keep metadata consistent.
+    - If ExifTool reports MicrosoftPhoto:Rating not writable, retry without that tag.
+    - Returns (stdout, stderr) combined from attempts.
+    """
+    targets = [full_path]
+    sidecar_path = f"{full_path}.xmp"
+
+    # Read & log sidecar previous rating (if present) and add it to targets
+    if os.path.exists(sidecar_path):
+        try:
+            proc = subprocess.run(
+                ["exiftool", "-json", "-n", "-Rating", "-XMP:Rating", "-RatingPercent", sidecar_path],
+                capture_output=True, text=True, check=True
+            )
+            side_info = json.loads(proc.stdout)[0] if proc.stdout else {}
+            prev_rating = side_info.get("Rating", side_info.get("XMP:Rating", None))
+            prev_percent = side_info.get("RatingPercent", None)
+
+            if prev_rating is not None or prev_percent is not None:
+                log(
+                    f"[SIDE-CAR] {sidecar_path} previous rating: Rating={prev_rating} RatingPercent={prev_percent}",
+                    log_file, LogLevel.INFO
+                )
+            else:
+                log(f"[SIDE-CAR] {sidecar_path} previous rating: (not set)", log_file, LogLevel.DEBUG)
+
+            targets.append(sidecar_path)
+        except Exception as e:
+            log(f"Failed to read sidecar {sidecar_path}: {e}", log_file, LogLevel.DEBUG)
+
+    # Optional: read and log in-file previous rating for audit (debug level)
+    try:
+        proc_file = subprocess.run(
+            ["exiftool", "-json", "-n", "-Rating", "-XMP:Rating", "-RatingPercent", full_path],
+            capture_output=True, text=True, check=True
+        )
+        file_info = json.loads(proc_file.stdout)[0] if proc_file.stdout else {}
+        file_prev_rating = file_info.get("Rating", file_info.get("XMP:Rating", None))
+        file_prev_percent = file_info.get("RatingPercent", None)
+        if file_prev_rating is not None or file_prev_percent is not None:
+            log(
+                f"[FILE-BEFORE] {full_path} previous rating: Rating={file_prev_rating} RatingPercent={file_prev_percent}",
+                log_file, LogLevel.DEBUG
+            )
+    except Exception:
+        # ignore read failures here
+        pass
+
+    # First write attempt (JPG [+ sidecar if present])
+    stdout, stderr = exif_tool_helper.execute(args + targets)
+    combined_out = (stdout or "") + (stderr or "")
+
+    # If ExifTool complains about MicrosoftPhoto:Rating not writable, retry without that tag
+    ms_tag = "MicrosoftPhoto:Rating"
+    if any(keyword in combined_out for keyword in ["MicrosoftPhoto:Rating", "MicrosoftPhoto:Rating' doesn't exist", "not writable", "Sorry"]):
+        # Filter out MicrosoftPhoto:Rating entries (they look like "-MicrosoftPhoto:Rating=...")
+        filtered_args = [a for a in args if not a.startswith(f"-{ms_tag}")]
+        log(f"[MSPHOTO] {full_path}: MicrosoftPhoto:Rating not writable; retrying without {ms_tag}", log_file, LogLevel.WARNING)
+        stdout2, stderr2 = exif_tool_helper.execute(filtered_args + targets)
+        combined_stdout = (stdout or "") + (stdout2 or "")
+        combined_stderr = (stderr or "") + (stderr2 or "")
+        return combined_stdout, combined_stderr
+
+    return stdout, stderr
 
 def check_exiftool(log_file: str) -> bool:
     """Verify ExifTool availability with robust error handling."""
