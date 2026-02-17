@@ -1123,9 +1123,9 @@ class SidecarAndMsPhotoTests(ModuleLoaderMixin):
     
                     # subprocess.run wurde zum Lesen der Sidecar aufgerufen und mit sidecar_path
                     mock_run.assert_called()
-                    # Optional stärker: assert_called_with prüft konkrete Arguments
-                    called_args = mock_run.call_args[0][0]
-                    assert any(sidecar_path in str(a) for a in called_args), "subprocess.run not called with sidecar path"
+                    # Prüfen, dass subprocess.run mit sidecar_path aufgerufen wurde
+                    calls_with_sidecar = [call for call in mock_run.call_args_list if any(sidecar_path in str(a) for a in call[0][0])]
+                    self.assertTrue(len(calls_with_sidecar) > 0, "subprocess.run not called with sidecar path")
     
                     # ExifToolHelper.execute wurde genau einmal aufgerufen (kein MSPHOTO-Retry nötig)
                     self.assertEqual(mock_execute.call_count, 1)
@@ -1149,7 +1149,7 @@ class SidecarAndMsPhotoTests(ModuleLoaderMixin):
                 def fake_execute_second(args):
                     return ("", "")
     
-                with mock.patch.object(helper, "execute", side_effect=[fake_execute_first, fake_execute_second]) as mock_execute:
+                with mock.patch.object(helper, "execute", side_effect=[ ("Warning: Sorry, MicrosoftPhoto:Rating doesn't exist or isn't writable\n", ""), ("", "") ]) as mock_execute:
                     stdout, stderr = self.module.execute_with_sidecar_and_msphoto(
                         ["-overwrite_original", "-XMP:Rating=2", "-MicrosoftPhoto:Rating=2", "-Rating=2", "-RatingPercent=40"],
                         full_path,
