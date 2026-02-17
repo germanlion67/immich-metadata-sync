@@ -1102,30 +1102,31 @@ class SidecarAndMsPhotoTests(ModuleLoaderMixin):
 
     def test_execute_with_sidecar_reads_and_logs_previous_value_and_appends_target(self):
         import unittest.mock as mock
-        # Pfad-Setup
         full_path = "/tmp/test/IMG-0001.jpg"
         sidecar_path = full_path + ".xmp"
-
-        # 1) Mock: sidecar existiert
+    
+        # sidecar existiert
         with mock.patch("exif.os.path.exists", return_value=True):
-            # 2) Mock: subprocess.run für sidecar-read -> gibt JSON mit XMP:Rating zurück
+            # subprocess.run für sidecar-read -> gibt JSON mit XMP:Rating zurück
             fake_sidecar_json = '[{"SourceFile":"%s","XMP:Rating":2,"RatingPercent":40}]' % sidecar_path
             mock_proc = mock.Mock()
             mock_proc.stdout = fake_sidecar_json
             with mock.patch("exif.subprocess.run", return_value=mock_proc) as mock_run:
-                # 3) Mock: ExifToolHelper.execute => simuliert erfolgreichen Write (keine MSPHOTO-Warnung)
                 helper = self.module.ExifToolHelper()
                 with mock.patch.object(helper, "execute", return_value=("", "")) as mock_execute:
-                    # Call the helper function from the exif module (available via combined module)
                     stdout, stderr = self.module.execute_with_sidecar_and_msphoto(
                         ["-overwrite_original", "-XMP:Rating=2", "-MicrosoftPhoto:Rating=2", "-Rating=2", "-RatingPercent=40"],
                         full_path,
                         helper,
                         "test.log"
                     )
-
-                    # subprocess.run wurde zum Lesen der Sidecar aufgerufen
+    
+                    # subprocess.run wurde zum Lesen der Sidecar aufgerufen und mit sidecar_path
                     mock_run.assert_called()
+                    # Optional stärker: assert_called_with prüft konkrete Arguments
+                    called_args = mock_run.call_args[0][0]
+                    assert any(sidecar_path in str(a) for a in called_args), "subprocess.run not called with sidecar path"
+    
                     # ExifToolHelper.execute wurde genau einmal aufgerufen (kein MSPHOTO-Retry nötig)
                     self.assertEqual(mock_execute.call_count, 1)
 
@@ -1133,33 +1134,29 @@ class SidecarAndMsPhotoTests(ModuleLoaderMixin):
         import unittest.mock as mock
         full_path = "/tmp/test/IMG-0002.jpg"
         sidecar_path = full_path + ".xmp"
-
-        # Sidecar existiert
+    
         with mock.patch("exif.os.path.exists", return_value=True):
-            # subprocess.run returns sidecar JSON
             fake_sidecar_json = '[{"SourceFile":"%s","XMP:Rating":2,"RatingPercent":40}]' % sidecar_path
             mock_proc = mock.Mock()
             mock_proc.stdout = fake_sidecar_json
             with mock.patch("exif.subprocess.run", return_value=mock_proc):
                 helper = self.module.ExifToolHelper()
-
-                # Prepare execute behavior: first call returns a combined output containing MS PHOTO warning,
-                # second call returns success.
+    
+                # Prepare execute behavior: first call returns a MicrosoftPhoto warning,
+                # second call returns success. Provide callables so they are invoked by the mock.
                 def fake_execute_first(args):
-                    # simulate exiftool stdout containing a MicrosoftPhoto warning string
                     return ("Warning: Sorry, MicrosoftPhoto:Rating doesn't exist or isn't writable\n", "")
-
                 def fake_execute_second(args):
                     return ("", "")
-
-                with mock.patch.object(helper, "execute", side_effect=[fake_execute_first([]), fake_execute_second([])]) as mock_execute:
+    
+                with mock.patch.object(helper, "execute", side_effect=[fake_execute_first, fake_execute_second]) as mock_execute:
                     stdout, stderr = self.module.execute_with_sidecar_and_msphoto(
                         ["-overwrite_original", "-XMP:Rating=2", "-MicrosoftPhoto:Rating=2", "-Rating=2", "-RatingPercent=40"],
                         full_path,
                         helper,
                         "test.log"
                     )
-
+    
                     # execute wurde zweimal aufgerufen: erster Versuch (mit MSPHOTO), zweiter Versuch (ohne MSPHOTO)
                     self.assertEqual(mock_execute.call_count, 2)
 
