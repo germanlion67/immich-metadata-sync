@@ -322,7 +322,9 @@ def build_exif_args(
     if "people" in active_modes:
         people = [p["name"] for p in details.get("people", []) if p.get("name")]
         if people:
-            val = ",".join(people)
+            # Sortiere Namen alphabetisch für konsistente Reihenfolge
+            people_sorted = sorted(people)
+            val = ",".join(people_sorted)
             args.extend([
                 f"-XMP:Subject={val}", 
                 f"-IPTC:Keywords={val}",
