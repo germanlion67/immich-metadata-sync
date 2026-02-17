@@ -147,9 +147,16 @@ def process_asset(
 
     try:
         log(f"UPDATE: {clean_rel} - Changing: {', '.join(fields_to_update)}", log_file, LogLevel.INFO)
-        stdout, stderr = exiftool.execute(["-overwrite_original"] + exif_args + [full_path])
-        if stderr:
-            log(f"ExifTool warning for {clean_rel}: {stderr}", log_file, LogLevel.WARNING)
+
+        # Use the sidecar-aware executor which also retries without MicrosoftPhoto:Rating if necessary
+        stdout, stderr = execute_with_sidecar_and_msphoto(["-overwrite_original"] + exif_args, full_path, exiftool, log_file)
+
+        # exiftool.execute returned combined stdout/stderr (or from retry)
+        combined = (stdout or "") + (stderr or "")
+        if combined:
+            # If there are warnings in ExifTool output, log them
+            if "Warning" in combined or "not writable" in combined or "doesn't exist" in combined or "Error" in combined:
+                log(f"ExifTool output for {clean_rel}: {combined}", log_file, LogLevel.WARNING)
         return "updated"
     except Exception as e:
         log(f"ERROR: ExifTool failed for {clean_rel}: {e}", log_file, LogLevel.ERROR)
