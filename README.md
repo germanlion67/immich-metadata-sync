@@ -20,7 +20,7 @@ Syncing Immich metadata back into your original media files.
     - [GPS](#gps)
     - [Captions](#captions)
     - [Time](#time)
-    - [Rating (Favorites)](#rating-favorites)
+    - [Rating & Favorites](#rating--favorites)
     - [Album Synchronization](#album-synchronization)
     - [Face Coordinates (MWG-RS)](#face-coordinates-mwg-rs)
 - [Documentation](#documentation)
@@ -35,8 +35,9 @@ Syncing Immich metadata back into your original media files.
 - **People** → `XMP:Subject`, `IPTC:Keywords`, `XMP-iptcExt:PersonInImage`
 - **GPS** → `GPSLatitude`, `GPSLongitude`, `GPSAltitude`
 - **Captions** → `XMP:Description`, `IPTC:Caption-Abstract`
-- **Time** → `DateTimeOriginal`, `CreateDate`, `XMP:CreateDate`, `XMP-photoshop:DateCreated`
-- **Favorites** → `Rating` (5 stars for favorites, 0 otherwise)
+- **Time** → `AllDates` (DateTimeOriginal/CreateDate/ModifyDate), `XMP:CreateDate`, `XMP:ModifyDate`, `XMP:MetadataDate`, `IPTC:DateCreated`, `IPTC:TimeCreated`, `QuickTime:CreateDate`, `QuickTime:ModifyDate`, `FileCreateDate`, `FileModifyDate`, `XMP-photoshop:DateCreated`
+- **Rating** → `XMP:Rating`, `MicrosoftPhoto:Rating`, `Rating`, `RatingPercent` (star rating 0–5)
+- **Favorite** → `XMP:Label` (`Favorite`), `XMP:Favorite` (`1`/`0`) — tracked independently from star rating
 - **Albums** → `XMP-iptcExt:Event`, `XMP:HierarchicalSubject` and `EXIF:UserComment` → Windows "Kommentare" (when `--albums` flag is used)
 - **Face Coordinates** → `RegionInfo` (MWG-RS XMP regions with bounding boxes, when `--face-coordinates` flag is used)
 
@@ -343,13 +344,36 @@ python3 immich-ultra-sync.py --caption --dry-run --only-new
 
 ## Time
 
-This module syncs capture timestamps from Immich into standard EXIF/XMP date fields.
+This module syncs capture timestamps from Immich into standard EXIF/XMP date fields using **oldest-date selection**: the earliest valid date from multiple metadata sources is chosen deterministically and written to a broad set of target fields for maximum compatibility.
 
-**EXIF/XMP fields used:**
-- `DateTimeOriginal`
-- `CreateDate`
-- `XMP:CreateDate`
-- `XMP-photoshop:DateCreated`
+**Source priority (oldest wins):**
+1. `EXIF:DateTimeOriginal` (API: `exifInfo.dateTimeOriginal`)
+2. `EXIF:CreateDate` (API: `exifInfo.dateTimeCreated`)
+3. `EXIF:ModifyDate` (API: `exifInfo.modifyDate`)
+4. `File:FileCreateDate` (API: `fileCreatedAt`)
+5. `File:FileModifyDate` (API: `fileModifiedAt`)
+6. **Fallback:** Date extracted from filename (patterns: `YYYYMMDD`, `YYYY-MM-DD`, `YYYY_MM_DD`, `IMG_YYYYMMDD_HHMMSS`, etc.)
+
+**Target fields written:**
+
+| Target Tag | Format | Example |
+|---|---|---|
+| `AllDates` (EXIF: DateTimeOriginal / CreateDate / ModifyDate) | `YYYY:MM:DD HH:MM:SS` | `2024:01:15 10:30:45` |
+| `XMP:CreateDate` | `YYYY:MM:DD HH:MM:SS` | `2024:01:15 10:30:45` |
+| `XMP:ModifyDate` | `YYYY:MM:DD HH:MM:SS` | `2024:01:15 10:30:45` |
+| `XMP:MetadataDate` | `YYYY:MM:DD HH:MM:SS` | `2024:01:15 10:30:45` |
+| `IPTC:DateCreated` | `YYYY-MM-DD` | `2024-01-15` |
+| `IPTC:TimeCreated` | `HH:MM:SS` | `10:30:45` |
+| `QuickTime:CreateDate` | ISO 8601 | `2024-01-15T10:30:45` |
+| `QuickTime:ModifyDate` | ISO 8601 | `2024-01-15T10:30:45` |
+| `FileCreateDate` | ISO 8601 | `2024-01-15T10:30:45` |
+| `FileModifyDate` | ISO 8601 | `2024-01-15T10:30:45` |
+| `XMP-photoshop:DateCreated` | `YYYY-MM-DD` | `2024-01-15` |
+
+**Filename fallback patterns:**
+- `IMG_20210615_123456.jpg` → `2021-06-15 12:34:56`
+- `photo_2021-06-15.jpg` → `2021-06-15 00:00:00`
+- `20210615.jpg` → `2021-06-15 00:00:00`
 
 **Command-line flags (relevant):**
 - `--time`  
@@ -361,8 +385,9 @@ This module syncs capture timestamps from Immich into standard EXIF/XMP date fie
 - `TZ` — Timezone used for date handling (default: `Europe/Berlin` unless overridden).
 
 **Notes / Cautions:**
+- Timezone handling: EXIF fields are written without timezone information (`YYYY:MM:DD HH:MM:SS`). QuickTime and File fields use ISO 8601 format which may include timezone if available.
 - Changing file EXIF timestamps can affect sorting in photo apps and may trigger re-indexing. Use `--dry-run` first to preview changes.
-- The tool attempts to preserve timezone semantics; verify `TZ` is set correctly for your library if your workflow relies on timezone-aware timestamps.
+- The tool logs which date source was selected for each asset (at DEBUG level).
 
 **Examples:**
 ```bash
@@ -374,12 +399,31 @@ python3 immich-ultra-sync.py --time --dry-run --only-new
 ```
 
 
-## Rating (Favorites)
+## Rating & Favorites
 
-Favorites in Immich are mapped to a numerical rating in the file metadata.
+Star ratings and favorites are now tracked **independently** in the file metadata, for full compatibility with third-party image management tools (Windows Explorer, Lightroom, digiKam, Darktable, XnView, etc.).
 
-**EXIF/XMP fields used:**
-- `Rating` (EXIF/XMP rating; favorites map to `5`, not-favorites map to `0`)
+**Star Rating (0–5) fields:**
+
+| Target Tag | Description |
+|---|---|
+| `XMP:Rating` | XMP standard star rating |
+| `MicrosoftPhoto:Rating` | Windows Explorer compatibility |
+| `Rating` | Generic EXIF rating (for broad compatibility) |
+| `RatingPercent` | Percentage (rating × 20, e.g. 3 stars = 60%) |
+
+**Rating logic:**
+- If `exifInfo.rating` is present → use it directly
+- Else if `asset.rating` is present → use it
+- Else if asset is a favorite → fallback to 5 stars
+- Otherwise → 0 stars
+
+**Favorite/Heart fields (independent of star rating):**
+
+| Target Tag | Value |
+|---|---|
+| `XMP:Label` | `Favorite` (if favorited), empty (if not) |
+| `XMP:Favorite` | `1` (if favorited), `0` (if not) |
 
 **Command-line flags (relevant):**
 - `--rating`  
@@ -388,12 +432,13 @@ Favorites in Immich are mapped to a numerical rating in the file metadata.
   (General flags) Preview or skip files without metadata changes.
 
 **Notes:**
-- The tool maps Immich "favorite" to a 5-star rating. Non-favorites are written as `0` unless `--only-new` and the value on disk already matches.
-- Some applications interpret rating differently; verify compatibility with downstream tools.
+- Star rating and favorite status are written independently. A photo can be a favorite without a 5-star rating, or have a star rating without being a favorite.
+- The fallback "favorite → 5 stars" only applies when no explicit star rating is set.
+- `RatingPercent` is computed as `rating * 20` for tools that use percentage-based ratings.
 
 **Examples:**
 ```bash
-# Sync favorites as ratings
+# Sync favorites and ratings
 python3 immich-ultra-sync.py --rating
 
 # Preview rating updates only

@@ -810,5 +810,293 @@ class DirectoryValidationTests(ModuleLoaderMixin):
         self.module.check_mount_issues(stats, "test.log", "/library", 3)
 
 
+class RatingFavoriteTests(ModuleLoaderMixin):
+    """Tests for Issue #24: Improved rating and favorite sync."""
+
+    def test_favorite_only_sets_rating_5_and_favorite_tags(self):
+        """Favorite with no explicit rating → fallback to 5 stars + Favorite label."""
+        asset = {"isFavorite": True}
+        details = {"exifInfo": {}}
+        args, changes = self.module.build_exif_args(asset, details, ["rating"])
+
+        self.assertIn("Rating", changes)
+        self.assertIn("-Rating=5", args)
+        self.assertIn("-XMP:Rating=5", args)
+        self.assertIn("-MicrosoftPhoto:Rating=5", args)
+        self.assertIn("-RatingPercent=100", args)
+        self.assertIn("-XMP:Label=Favorite", args)
+        self.assertIn("-XMP:Favorite=1", args)
+
+    def test_star_rating_only_no_favorite(self):
+        """Explicit star rating, not a favorite."""
+        asset = {"isFavorite": False}
+        details = {"exifInfo": {"rating": 3}}
+        args, changes = self.module.build_exif_args(asset, details, ["rating"])
+
+        self.assertIn("Rating", changes)
+        self.assertIn("-Rating=3", args)
+        self.assertIn("-XMP:Rating=3", args)
+        self.assertIn("-MicrosoftPhoto:Rating=3", args)
+        self.assertIn("-RatingPercent=60", args)
+        self.assertIn("-XMP:Label=", args)
+        self.assertIn("-XMP:Favorite=0", args)
+
+    def test_star_rating_and_favorite(self):
+        """Both star rating and favorite set."""
+        asset = {"isFavorite": True}
+        details = {"exifInfo": {"rating": 4}}
+        args, changes = self.module.build_exif_args(asset, details, ["rating"])
+
+        self.assertIn("-Rating=4", args)
+        self.assertIn("-RatingPercent=80", args)
+        self.assertIn("-XMP:Label=Favorite", args)
+        self.assertIn("-XMP:Favorite=1", args)
+
+    def test_no_rating_no_favorite(self):
+        """Neither star rating nor favorite → 0."""
+        asset = {"isFavorite": False}
+        details = {"exifInfo": {}}
+        args, changes = self.module.build_exif_args(asset, details, ["rating"])
+
+        self.assertIn("-Rating=0", args)
+        self.assertIn("-XMP:Rating=0", args)
+        self.assertIn("-MicrosoftPhoto:Rating=0", args)
+        self.assertIn("-RatingPercent=0", args)
+        self.assertIn("-XMP:Favorite=0", args)
+
+    def test_rating_zero_stars(self):
+        """Explicit 0-star rating."""
+        asset = {"isFavorite": False}
+        details = {"exifInfo": {"rating": 0}}
+        args, changes = self.module.build_exif_args(asset, details, ["rating"])
+
+        self.assertIn("-Rating=0", args)
+        self.assertIn("-RatingPercent=0", args)
+
+    def test_normalize_xmp_rating(self):
+        """Normalize XMP:Rating values."""
+        self.assertEqual(self.module.normalize_exif_value("3", "XMP:Rating"), "3")
+
+    def test_normalize_microsoft_rating(self):
+        """Normalize MicrosoftPhoto:Rating values."""
+        self.assertEqual(self.module.normalize_exif_value("5", "MicrosoftPhoto:Rating"), "5")
+
+    def test_normalize_rating_percent(self):
+        """Normalize RatingPercent values."""
+        self.assertEqual(self.module.normalize_exif_value("80", "RatingPercent"), "80")
+
+    def test_normalize_xmp_label(self):
+        """Normalize XMP:Label values."""
+        self.assertEqual(self.module.normalize_exif_value("Favorite", "XMP:Label"), "Favorite")
+
+    def test_normalize_xmp_favorite(self):
+        """Normalize XMP:Favorite values."""
+        self.assertEqual(self.module.normalize_exif_value("1", "XMP:Favorite"), "1")
+
+
+class TimestampOldestDateTests(ModuleLoaderMixin):
+    """Tests for Issue #26: Deterministic oldest-date selection and broad timestamp writing."""
+
+    def test_select_oldest_date_dateTimeOriginal_earliest(self):
+        """dateTimeOriginal is earliest → should be selected."""
+        asset = {
+            "exifInfo": {
+                "dateTimeOriginal": "2021-06-15T10:00:00Z",
+                "dateTimeCreated": "2022-01-01T12:00:00Z",
+            },
+            "fileCreatedAt": "2023-01-01T00:00:00Z",
+        }
+        result = self.module.select_oldest_date_from_asset(asset)
+        self.assertIsNotNone(result)
+        self.assertEqual(result.year, 2021)
+        self.assertEqual(result.month, 6)
+        self.assertEqual(result.day, 15)
+
+    def test_select_oldest_date_fileCreatedAt_earliest(self):
+        """fileCreatedAt is earliest → should be selected."""
+        asset = {
+            "exifInfo": {
+                "dateTimeOriginal": "2023-06-15T10:00:00Z",
+            },
+            "fileCreatedAt": "2020-01-01T00:00:00Z",
+            "fileModifiedAt": "2023-06-20T00:00:00Z",
+        }
+        result = self.module.select_oldest_date_from_asset(asset)
+        self.assertIsNotNone(result)
+        self.assertEqual(result.year, 2020)
+
+    def test_select_oldest_date_no_exif_only_file(self):
+        """No EXIF dates, only file dates."""
+        asset = {
+            "exifInfo": {},
+            "fileCreatedAt": "2021-03-15T08:30:00Z",
+            "fileModifiedAt": "2021-04-20T10:00:00Z",
+        }
+        result = self.module.select_oldest_date_from_asset(asset)
+        self.assertIsNotNone(result)
+        self.assertEqual(result.year, 2021)
+        self.assertEqual(result.month, 3)
+
+    def test_select_oldest_date_filename_fallback(self):
+        """No metadata dates → extract from filename."""
+        asset = {
+            "exifInfo": {},
+            "originalFileName": "IMG_20210615_1234.jpg",
+        }
+        result = self.module.select_oldest_date_from_asset(asset)
+        self.assertIsNotNone(result)
+        self.assertEqual(result.year, 2021)
+        self.assertEqual(result.month, 6)
+        self.assertEqual(result.day, 15)
+
+    def test_select_oldest_date_no_data(self):
+        """No dates available at all → None."""
+        asset = {"exifInfo": {}}
+        result = self.module.select_oldest_date_from_asset(asset)
+        self.assertIsNone(result)
+
+    def test_select_oldest_date_tz_aware(self):
+        """tz-aware ISO timestamps are parsed correctly."""
+        asset = {
+            "exifInfo": {
+                "dateTimeOriginal": "2026-02-11T09:44:27.476+02:00",
+            },
+        }
+        result = self.module.select_oldest_date_from_asset(asset)
+        self.assertIsNotNone(result)
+        self.assertEqual(result.year, 2026)
+        self.assertEqual(result.hour, 9)
+        self.assertEqual(result.minute, 44)
+
+    def test_extract_date_from_filename_yyyymmdd(self):
+        """Extract date from YYYYMMDD filename."""
+        result = self.module.extract_date_from_filename("IMG_20210615.jpg")
+        self.assertIsNotNone(result)
+        self.assertEqual(result.year, 2021)
+        self.assertEqual(result.month, 6)
+        self.assertEqual(result.day, 15)
+
+    def test_extract_date_from_filename_yyyy_mm_dd(self):
+        """Extract date from YYYY-MM-DD filename."""
+        result = self.module.extract_date_from_filename("photo_2021-06-15_sunset.jpg")
+        self.assertIsNotNone(result)
+        self.assertEqual(result.year, 2021)
+        self.assertEqual(result.month, 6)
+
+    def test_extract_date_from_filename_with_time(self):
+        """Extract date+time from filename like IMG_20210615_123456."""
+        result = self.module.extract_date_from_filename("IMG_20210615_123456.jpg")
+        self.assertIsNotNone(result)
+        self.assertEqual(result.year, 2021)
+        self.assertEqual(result.hour, 12)
+        self.assertEqual(result.minute, 34)
+        self.assertEqual(result.second, 56)
+
+    def test_extract_date_from_filename_invalid(self):
+        """No date pattern in filename → None."""
+        result = self.module.extract_date_from_filename("random_photo.jpg")
+        self.assertIsNone(result)
+
+    def test_extract_date_from_filename_empty(self):
+        """Empty filename → None."""
+        result = self.module.extract_date_from_filename("")
+        self.assertIsNone(result)
+
+    def test_build_exif_args_time_writes_all_tags(self):
+        """Time sync should write to AllDates, XMP, IPTC, QuickTime, File tags."""
+        asset = {"isFavorite": False}
+        details = {
+            "exifInfo": {"dateTimeOriginal": "2024-01-15T10:30:45Z"},
+            "fileCreatedAt": "2024-02-01T00:00:00Z",
+        }
+        args, changes = self.module.build_exif_args(asset, details, ["time"])
+
+        self.assertIn("Time", changes)
+        self.assertIn("-AllDates=2024:01:15 10:30:45", args)
+        self.assertIn("-XMP:CreateDate=2024:01:15 10:30:45", args)
+        self.assertIn("-XMP:ModifyDate=2024:01:15 10:30:45", args)
+        self.assertIn("-XMP:MetadataDate=2024:01:15 10:30:45", args)
+        self.assertIn("-IPTC:DateCreated=2024-01-15", args)
+        self.assertIn("-IPTC:TimeCreated=10:30:45", args)
+        self.assertIn("-QuickTime:CreateDate=2024-01-15T10:30:45", args)
+        self.assertIn("-QuickTime:ModifyDate=2024-01-15T10:30:45", args)
+        self.assertIn("-FileCreateDate=2024-01-15T10:30:45", args)
+        self.assertIn("-FileModifyDate=2024-01-15T10:30:45", args)
+        self.assertIn("-XMP-photoshop:DateCreated=2024-01-15", args)
+
+    def test_build_exif_args_time_uses_oldest_date(self):
+        """Time sync should select the oldest date from multiple sources."""
+        asset = {"isFavorite": False}
+        details = {
+            "exifInfo": {"dateTimeOriginal": "2024-06-15T10:00:00Z"},
+            "fileCreatedAt": "2023-01-01T00:00:00Z",
+        }
+        args, changes = self.module.build_exif_args(asset, details, ["time"])
+
+        self.assertIn("Time", changes)
+        # Should use fileCreatedAt (2023) since it's older
+        self.assertIn("-AllDates=2023:01:01 00:00:00", args)
+
+    def test_build_exif_args_time_filename_fallback(self):
+        """Time sync fallback to filename date when no metadata dates."""
+        asset = {"isFavorite": False}
+        details = {
+            "exifInfo": {},
+            "originalFileName": "IMG_20210615_1234.jpg",
+        }
+        args, changes = self.module.build_exif_args(asset, details, ["time"])
+
+        self.assertIn("Time", changes)
+        self.assertIn("-AllDates=2021:06:15 12:34:00", args)
+
+    def test_build_exif_args_time_no_date(self):
+        """Time sync with no dates → no time args."""
+        asset = {"isFavorite": False}
+        details = {"exifInfo": {}}
+        args, changes = self.module.build_exif_args(asset, details, ["time"])
+
+        self.assertNotIn("Time", changes)
+        self.assertEqual(args, [])
+
+    def test_build_exif_args_time_tz_formatting(self):
+        """tz-aware EXIF → EXIF fields as YYYY:MM:DD HH:MM:SS (no TZ), QuickTime as ISO."""
+        asset = {"isFavorite": False}
+        details = {
+            "exifInfo": {"dateTimeOriginal": "2026-02-11T09:44:27.476+02:00"},
+        }
+        args, changes = self.module.build_exif_args(asset, details, ["time"])
+
+        self.assertIn("Time", changes)
+        # AllDates → EXIF format (no TZ)
+        self.assertIn("-AllDates=2026:02:11 09:44:27", args)
+        # QuickTime → ISO format
+        self.assertIn("-QuickTime:CreateDate=2026-02-11T09:44:27", args)
+
+    def test_parse_datetime_str_various_formats(self):
+        """Test the internal datetime parser with various formats."""
+        parse = self.module._parse_datetime_str
+        # ISO with Z
+        dt = parse("2024-01-15T10:30:45Z")
+        self.assertIsNotNone(dt)
+        self.assertEqual(dt.hour, 10)
+        # ISO with offset
+        dt = parse("2024-01-15T10:30:45+02:00")
+        self.assertIsNotNone(dt)
+        # EXIF format
+        dt = parse("2024:01:15 10:30:45")
+        self.assertIsNotNone(dt)
+        # ISO with microseconds
+        dt = parse("2024-01-15T10:30:45.123456Z")
+        self.assertIsNotNone(dt)
+        # Invalid
+        dt = parse("not-a-date")
+        self.assertIsNone(dt)
+        # Empty
+        dt = parse("")
+        self.assertIsNone(dt)
+        dt = parse(None)
+        self.assertIsNone(dt)
+
+
 if __name__ == "__main__":
     unittest.main()

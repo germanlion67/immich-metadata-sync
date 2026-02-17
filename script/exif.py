@@ -128,9 +128,16 @@ def get_current_exif_values(full_path: str, active_modes: List[str]) -> Dict[str
     if "caption" in active_modes:
         tags_to_read.extend(["Description", "Caption-Abstract"])
     if "time" in active_modes:
-        tags_to_read.extend(["DateTimeOriginal", "CreateDate", "DateCreated"])  # ← FIX: DateCreated statt XMP-photoshop
+        tags_to_read.extend([
+            "DateTimeOriginal", "CreateDate", "ModifyDate", "DateCreated",
+            "XMP:CreateDate", "XMP:ModifyDate", "XMP:MetadataDate",
+            "IPTC:DateCreated", "IPTC:TimeCreated",
+            "QuickTime:CreateDate", "QuickTime:ModifyDate",
+            "FileCreateDate", "FileModifyDate"
+        ])
     if "rating" in active_modes:
-        tags_to_read.extend(["Rating"])  # ← FIX: Removed MicrosoftPhoto
+        tags_to_read.extend(["Rating", "XMP:Rating", "MicrosoftPhoto:Rating", "RatingPercent",
+                             "XMP:Label", "XMP:Favorite"])
     if "albums" in active_modes:
         tags_to_read.extend(["Event", "HierarchicalSubject", "UserComment"])
     if "face-coordinates" in active_modes:
@@ -232,14 +239,31 @@ def normalize_exif_value(value: str, tag: str) -> str:
                 return match.group(0)
     
     # Rating: extract digit
-    if tag == "Rating":
+    if tag in ["Rating", "XMP:Rating", "MicrosoftPhoto:Rating"] or tag_short == "Rating":
         match = re.search(r"\d", value)
         if match:
             return match.group(0)
-    
-        
+
+    # RatingPercent: extract number
+    if tag == "RatingPercent" or tag_short == "RatingPercent":
+        match = re.search(r"\d+", value)
+        if match:
+            return match.group(0)
+
+    # XMP:Label: normalize to string
+    if tag == "XMP:Label" or tag_short == "Label":
+        return value.strip()
+
+    # XMP:Favorite: normalize to 0/1
+    if tag == "XMP:Favorite" or tag_short == "Favorite":
+        return value.strip()
+
     # DateTime fields: normalize separators
-    if tag in ["DateTimeOriginal", "CreateDate"] or tag_short in ["DateTimeOriginal", "CreateDate", "XMP:CreateDate"]:
+    if tag in ["DateTimeOriginal", "CreateDate", "ModifyDate"] or tag_short in [
+        "DateTimeOriginal", "CreateDate", "ModifyDate", "XMP:CreateDate",
+        "XMP:ModifyDate", "XMP:MetadataDate", "MetadataDate",
+        "QuickTime:CreateDate", "QuickTime:ModifyDate"
+    ]:
         # Convert "YYYY:MM:DD HH:MM:SS" format variations
         normalized = value.replace("-", ":").replace("T", " ")
         # Remove trailing 'Z' if present
@@ -256,6 +280,20 @@ def normalize_exif_value(value: str, tag: str) -> str:
         # Take first 10 characters (YYYY-MM-DD)
         if len(normalized) >= 10:
             return normalized[:10]
+    # IPTC:TimeCreated: normalize time
+    if tag == "IPTC:TimeCreated" or tag_short == "TimeCreated":
+        # Normalize to HH:MM:SS format
+        normalized = value.strip()
+        if len(normalized) >= 8:
+            return normalized[:8]
+        return normalized
+    # File timestamps: normalize ISO format
+    if tag_short in ["FileCreateDate", "FileModifyDate"]:
+        normalized = value.replace("-", ":").replace("T", " ")
+        normalized = normalized.rstrip('Z').strip()
+        if len(normalized) >= 19:
+            return normalized[:19]
+        return normalized
     # MWG-RS RegionInfo: normalize to canonical name:coordinates representation
     if tag_short == "RegionInfo":
         try:
@@ -306,6 +344,118 @@ def convert_bbox_to_mwg_rs(
     }
 
 
+def extract_date_from_filename(filename: str) -> Optional[datetime.datetime]:
+    """Extract a date from a filename using common patterns.
+
+    Supports patterns like YYYYMMDD, YYYY-MM-DD, YYYY_MM_DD, IMG_YYYYMMDD_HHMM, etc.
+    Returns a naive datetime or None if no pattern matches.
+    """
+    if not filename:
+        return None
+    # Strip directory and extension
+    basename = os.path.splitext(os.path.basename(filename))[0]
+    # Try various patterns in order of specificity
+    patterns = [
+        # YYYYMMDD_HHMMSS or YYYYMMDD-HHMMSS
+        (r"(\d{4})[\-_]?(\d{2})[\-_]?(\d{2})[\-_](\d{2})[\-_]?(\d{2})[\-_]?(\d{2})",
+         lambda m: datetime.datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)),
+                                     int(m.group(4)), int(m.group(5)), int(m.group(6)))),
+        # YYYYMMDD_HHMM (no seconds)
+        (r"(\d{4})[\-_]?(\d{2})[\-_]?(\d{2})[\-_](\d{2})[\-_]?(\d{2})(?!\d)",
+         lambda m: datetime.datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)),
+                                     int(m.group(4)), int(m.group(5)))),
+        # YYYY-MM-DD or YYYY_MM_DD or YYYYMMDD
+        (r"(\d{4})[\-_]?(\d{2})[\-_]?(\d{2})",
+         lambda m: datetime.datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)))),
+    ]
+    for pattern, builder in patterns:
+        match = re.search(pattern, basename)
+        if match:
+            try:
+                dt = builder(match)
+                # Basic sanity check
+                if 1900 <= dt.year <= 2100 and 1 <= dt.month <= 12 and 1 <= dt.day <= 31:
+                    return dt
+            except (ValueError, OverflowError):
+                continue
+    return None
+
+
+def _parse_datetime_str(date_str: str) -> Optional[datetime.datetime]:
+    """Parse a datetime string tolerantly, returning a naive datetime or None."""
+    if not date_str or not isinstance(date_str, str):
+        return None
+    date_str = date_str.strip()
+    if not date_str:
+        return None
+
+    # Try common ISO 8601 formats
+    for fmt in ["%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%SZ",
+                "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S",
+                "%Y-%m-%d %H:%M:%S", "%Y:%m:%d %H:%M:%S"]:
+        try:
+            return datetime.datetime.strptime(date_str, fmt)
+        except ValueError:
+            continue
+
+    # Fallback: strip timezone offsets and try fromisoformat
+    try:
+        clean_str = date_str.replace("Z", "")
+        clean_str = re.sub(r"[+-]\d{2}:?\d{2}$", "", clean_str)
+        return datetime.datetime.fromisoformat(clean_str)
+    except (ValueError, AttributeError):
+        return None
+
+
+def select_oldest_date_from_asset(asset: Dict[str, Any], log_file: str = DEFAULT_LOG_FILE) -> Optional[datetime.datetime]:
+    """Select the oldest (earliest) date from an asset's metadata fields.
+
+    Priority order:
+      1. exifInfo.dateTimeOriginal
+      2. exifInfo.dateTimeCreated (CreateDate)
+      3. exifInfo.modifyDate
+      4. fileCreatedAt
+      5. fileModifiedAt
+      6. Fallback: date from filename (originalPath / originalFileName)
+
+    Returns a naive datetime (timezone stripped) or None.
+    """
+    details = asset if "exifInfo" in asset else {}
+    exif = details.get("exifInfo", {}) or {}
+
+    candidates: List[Tuple[str, Optional[str]]] = [
+        ("exifInfo.dateTimeOriginal", exif.get("dateTimeOriginal")),
+        ("exifInfo.dateTimeCreated", exif.get("dateTimeCreated")),
+        ("exifInfo.modifyDate", exif.get("modifyDate")),
+        ("fileCreatedAt", asset.get("fileCreatedAt") or details.get("fileCreatedAt")),
+        ("fileModifiedAt", asset.get("fileModifiedAt") or details.get("fileModifiedAt")),
+    ]
+
+    valid_dates: List[Tuple[str, datetime.datetime]] = []
+    for source_name, raw_value in candidates:
+        if raw_value:
+            parsed = _parse_datetime_str(str(raw_value))
+            if parsed:
+                valid_dates.append((source_name, parsed))
+
+    if valid_dates:
+        source, oldest = min(valid_dates, key=lambda x: x[1])
+        log(f"Selected date from {source}: {oldest.isoformat()}", log_file, LogLevel.DEBUG)
+        return oldest
+
+    # Fallback: extract date from filename
+    original_path = asset.get("originalPath") or details.get("originalPath") or ""
+    original_filename = asset.get("originalFileName") or details.get("originalFileName") or ""
+    filename = original_filename or os.path.basename(original_path)
+    if filename:
+        dt = extract_date_from_filename(filename)
+        if dt:
+            log(f"Selected date from filename '{filename}': {dt.isoformat()}", log_file, LogLevel.DEBUG)
+            return dt
+
+    return None
+
+
 def build_exif_args(
     asset: Dict[str, Any],
     details: Dict[str, Any],
@@ -349,63 +499,77 @@ def build_exif_args(
             args.extend([f"-XMP:Description={clean_cap}", f"-IPTC:Caption-Abstract={clean_cap}"])
             changes.append("Caption")
 
-    # 4. TIME SYNC (timestamp corrections)
+    # 4. TIME SYNC (deterministic oldest-date selection and broad timestamp writing)
     if "time" in active_modes:
-        date_raw = details.get("fileCreatedAt") or exif.get("dateTimeOriginal")
-        if date_raw:
-            # Use datetime for robust parsing
-            date_str = str(date_raw)
-            parsed_date = None
-            
-            # Try common ISO 8601 formats
-            for fmt in ["%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%SZ", 
-                       "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S",
-                       "%Y-%m-%d %H:%M:%S", "%Y:%m:%d %H:%M:%S"]:
-                try:
-                    parsed_date = datetime.datetime.strptime(date_str, fmt)
-                    break
-                except ValueError:
-                    continue
-            
-            # Fallback to fromisoformat when patterns fail
-            if not parsed_date:
-                try:
-                    # Strip timezone information when present
-                    # Robust for positive (+) and negative (-) offsets
-                    clean_str = date_str.replace("Z", "")
-                    # Strip timezone offsets in ±HH:MM or ±HHMM formats before ISO parsing
-                    clean_str = re.sub(r"[+-]\d{2}:?\d{2}$", "", clean_str)
-                    parsed_date = datetime.datetime.fromisoformat(clean_str)
-                except (ValueError, AttributeError):
-                    pass
-            
-            if parsed_date:
-                # Format to EXIF: YYYY:MM:DD HH:MM:SS
-                clean_date = parsed_date.strftime("%Y:%m:%d %H:%M:%S")
-                iso_date = parsed_date.strftime("%Y-%m-%d")
-                args.extend([
-                    f"-DateTimeOriginal={clean_date}", 
-                    f"-CreateDate={clean_date}",
-                    f"-XMP:CreateDate={clean_date}",  # ← NEW: XMP standard
-                    f"-XMP-photoshop:DateCreated={iso_date}"  # ← NEW: Photoshop compatibility (ISO date only)
-                ])
-                changes.append("Time")
-            else:
-                # Final fallback when parsing fails
-                clean_date = str(date_raw).replace("-", ":").replace("T", " ")[:19]
-                iso_date = str(date_raw)[:10]  # Extract YYYY-MM-DD
-                args.extend([
-                    f"-DateTimeOriginal={clean_date}", 
-                    f"-CreateDate={clean_date}",
-                    f"-XMP:CreateDate={clean_date}",
-                    f"-XMP-photoshop:DateCreated={iso_date}"
-                ])
-                changes.append("Time")
+        # Combine asset-level and detail-level data for select_oldest_date_from_asset
+        combined = {**asset}
+        combined["exifInfo"] = exif
+        if "fileCreatedAt" not in combined and "fileCreatedAt" in details:
+            combined["fileCreatedAt"] = details["fileCreatedAt"]
+        if "fileModifiedAt" not in combined and "fileModifiedAt" in details:
+            combined["fileModifiedAt"] = details["fileModifiedAt"]
+        if "originalPath" not in combined and "originalPath" in details:
+            combined["originalPath"] = details["originalPath"]
+        if "originalFileName" not in combined and "originalFileName" in details:
+            combined["originalFileName"] = details["originalFileName"]
 
-    # 5. FAVORITE SYNC (Immich heart -> 5 stars, else 0)
+        parsed_date = select_oldest_date_from_asset(combined)
+
+        if parsed_date:
+            # Format to EXIF: YYYY:MM:DD HH:MM:SS (no timezone)
+            clean_date = parsed_date.strftime("%Y:%m:%d %H:%M:%S")
+            iso_date = parsed_date.strftime("%Y-%m-%d")
+            iso_time = parsed_date.strftime("%H:%M:%S")
+            iso_datetime = parsed_date.strftime("%Y-%m-%dT%H:%M:%S")
+            args.extend([
+                f"-AllDates={clean_date}",
+                f"-XMP:CreateDate={clean_date}",
+                f"-XMP:ModifyDate={clean_date}",
+                f"-XMP:MetadataDate={clean_date}",
+                f"-IPTC:DateCreated={iso_date}",
+                f"-IPTC:TimeCreated={iso_time}",
+                f"-QuickTime:CreateDate={iso_datetime}",
+                f"-QuickTime:ModifyDate={iso_datetime}",
+                f"-FileCreateDate={iso_datetime}",
+                f"-FileModifyDate={iso_datetime}",
+                f"-XMP-photoshop:DateCreated={iso_date}",
+            ])
+            changes.append("Time")
+
+    # 5. RATING & FAVORITE SYNC (independent tracking)
     if "rating" in active_modes:
-        rating = "5" if asset.get("isFavorite") else "0"
-        args.append(f"-Rating={rating}")
+        # Star rating: from exifInfo.rating or asset.rating, fallback favorite → 5
+        star_rating = exif.get("rating")
+        if star_rating is None:
+            star_rating = asset.get("rating")
+        is_favorite = asset.get("isFavorite", False)
+
+        if star_rating is not None:
+            star_rating = int(star_rating)
+        elif is_favorite:
+            star_rating = 5
+        else:
+            star_rating = 0
+
+        rating_percent = star_rating * 20
+        args.extend([
+            f"-XMP:Rating={star_rating}",
+            f"-MicrosoftPhoto:Rating={star_rating}",
+            f"-Rating={star_rating}",
+            f"-RatingPercent={rating_percent}",
+        ])
+
+        # Favorite: written independently of star rating
+        if is_favorite:
+            args.extend([
+                "-XMP:Label=Favorite",
+                "-XMP:Favorite=1",
+            ])
+        else:
+            args.extend([
+                "-XMP:Label=",
+                "-XMP:Favorite=0",
+            ])
         changes.append("Rating")
 
     # 6. ALBUM SYNC (new section after rating)
