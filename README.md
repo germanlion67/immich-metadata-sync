@@ -5,7 +5,7 @@
 
 > Versioning note: see CHANGELOG.
 
-![Docker Pulls](https://img.shields.io/docker/pulls/germanlion67/immich-metadata-sync)
+![Docker Pulls](https://img.shields.io/docker/pulls/germanlion67/immich-metadata-sync) ![Python Tests](https://github.com/germanlion67/immich-metadata-sync/actions/workflows/pytest.yml/badge.svg)
 
 Syncing Immich metadata back into your original media files. 
 ## Table of Contents
