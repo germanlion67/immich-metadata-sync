@@ -12,12 +12,17 @@ Syncing Immich metadata back into your original media files.
 - [Features](#features)
 - [Requirements](#requirements)
 - [Installation](#installation)
+- [Configuration](#configuration)
 - [Usage](#usage)
   - [Web Interface](#-web-interface-new-in-v15)
   - [Command Line](#command-line-options)
-- [Configuration](#configuration)
-- [Album Synchronization](#album-synchronization)
-- [Face Coordinates (MWG-RS)](#face-coordinates-mwg-rs)
+    - [People](#people)
+    - [GPS](#gps)
+    - [Captions](#captions)
+    - [Time](#time)
+    - [Rating (Favorites)](#rating-favorites)
+    - [Album Synchronization](#album-synchronization)
+    - [Face Coordinates (MWG-RS)](#face-coordinates-mwg-rs)
 - [Documentation](#documentation)
 - [Troubleshooting](#troubleshooting)
 - [Development](#development)
@@ -82,6 +87,26 @@ brew install exiftool
 ```bash
 pip install requests tqdm flask
 ```
+## Configuration
+
+Set these environment variables (or provide a config file via `--config`). Supported config formats are:
+- INI (default `immich-sync.conf`)
+- `.env` files with `KEY=value` lines
+- JSON objects with keys matching the environment variables
+
+| Variable | Description | Default |
+| --- | --- | --- |
+| `IMMICH_INSTANCE_URL` | **Required**. URL to your Immich instance (e.g., `http://immich:2283`) | - |
+| `IMMICH_API_KEY` | **Required**. API key from Immich user settings | - |
+| `IMMICH_PHOTO_DIR` | Path where the photo library is mounted inside the container | `/library` |
+| `TZ` | Timezone for correct date handling | `Europe/Berlin` |
+| `IMMICH_LOG_FILE` | Path to the log file | `immich_ultra_sync.txt` |
+| `CAPTION_MAX_LEN` | Max length for captions before truncation | `2000` |
+| `IMMICH_ALBUM_CACHE_TTL` | Album cache lifetime in seconds | `86400` (24 hours) |
+| `IMMICH_ALBUM_CACHE_MAX_STALE` | Maximum age for stale cache fallback in seconds | `604800` (7 days) |
+| `IMMICH_LOG_FORMAT` / `IMMICH_STRUCTURED_LOGS` | Set to `json` or `true` to emit structured JSON log lines (key/value) | text |
+
+
 
 ## Usage
 
@@ -186,7 +211,8 @@ Then run:
 docker-compose up -d
 ```
 
-### Command Line Options
+
+## Command Line Options
 
 ```bash
 # Sync all metadata including albums
@@ -219,24 +245,164 @@ Common flags:
 - `--export-stats json|csv` - Capture run statistics
 - `--log-level {DEBUG,INFO,WARNING,ERROR}` - Set logging verbosity
 
-## Configuration
 
-Set these environment variables (or provide a config file via `--config`). Supported config formats are:
-- INI (default `immich-sync.conf`)
-- `.env` files with `KEY=value` lines
-- JSON objects with keys matching the environment variables
+---
 
-| Variable | Description | Default |
-| --- | --- | --- |
-| `IMMICH_INSTANCE_URL` | **Required**. URL to your Immich instance (e.g., `http://immich:2283`) | - |
-| `IMMICH_API_KEY` | **Required**. API key from Immich user settings | - |
-| `IMMICH_PHOTO_DIR` | Path where the photo library is mounted inside the container | `/library` |
-| `TZ` | Timezone for correct date handling | `Europe/Berlin` |
-| `IMMICH_LOG_FILE` | Path to the log file | `immich_ultra_sync.txt` |
-| `CAPTION_MAX_LEN` | Max length for captions before truncation | `2000` |
-| `IMMICH_ALBUM_CACHE_TTL` | Album cache lifetime in seconds | `86400` (24 hours) |
-| `IMMICH_ALBUM_CACHE_MAX_STALE` | Maximum age for stale cache fallback in seconds | `604800` (7 days) |
-| `IMMICH_LOG_FORMAT` / `IMMICH_STRUCTURED_LOGS` | Set to `json` or `true` to emit structured JSON log lines (key/value) | text |
+## People
+
+Syncing detected people writes person names (when available) into several metadata locations so other tools can pick them up.
+
+**XMP/IPTC/EXIF fields used:**
+- `XMP:Subject`
+- `IPTC:Keywords`
+- `XMP-iptcExt:PersonInImage`
+
+**Command-line flags (relevant):**
+- `--people`  
+  Enable syncing of person names and canonical person metadata (included in `--all`).
+- `--only-new` / `--dry-run`  
+  (General flags) Preview or skip files without metadata changes.
+- `--resume` / `--clear-checkpoint`  
+  (General flags) Continue or reset progress between runs.
+
+**Notes:**
+- Person names are taken from Immich's person database. Unnamed detections are skipped when writing names.
+- Combining `--people` with `--face-coordinates` will write both names and region boxes (region names come from `--people`).
+
+**Examples:**
+```bash
+# Sync only people names
+python3 immich-ultra-sync.py --people
+
+# Preview what would change (no writes)
+python3 immich-ultra-sync.py --people --dry-run --only-new
+```
+
+
+
+## GPS
+
+GPS coordinates from Immich are written back into standard EXIF GPS tags so maps and other geo-aware tools can read them.
+
+**EXIF fields used:**
+- `GPSLatitude`
+- `GPSLongitude`
+- `GPSAltitude`
+- `GPSLatitudeRef`, `GPSLongitudeRef`, `GPSAltitudeRef` (as applicable)
+
+**Command-line flags (relevant):**
+- `--gps`  
+  Enable syncing of GPS coordinates (included in `--all`).
+- `--only-new` / `--dry-run`  
+  (General flags) Preview or skip files without metadata changes.
+
+**Notes:**
+- Coordinates are written in EXIF format appropriate for the file type.
+- If no GPS data is present in Immich for an asset, no GPS tags will be written or existing GPS tags will be left unchanged unless the tool explicitly clears them (not the default).
+
+**Examples:**
+```bash
+# Sync GPS coordinates
+python3 immich-ultra-sync.py --gps
+
+# Sync GPS coordinates but do not write files (dry run)
+python3 immich-ultra-sync.py --gps --dry-run
+```
+
+
+## Captions
+
+Captions and descriptions from Immich are synced into IPTC/XMP caption fields.
+
+**XMP/IPTC fields used:**
+- `XMP:Description`
+- `IPTC:Caption-Abstract`
+
+**Command-line flags (relevant):**
+- `--caption`  
+  Enable syncing of captions/descriptions (included in `--all`).
+- `--only-new` / `--dry-run`  
+  (General flags) Preview or skip files without metadata changes.
+
+**Environment variables:**
+- `CAPTION_MAX_LEN` — Maximum caption length before truncation (default: `2000`).
+
+**Notes:**
+- Captions longer than `CAPTION_MAX_LEN` will be truncated to avoid excessively large metadata blocks.
+- Character encoding follows ExifTool defaults; if you need a particular charset, ensure your environment and ExifTool configuration support it.
+
+**Examples:**
+```bash
+# Sync captions from Immich
+python3 immich-ultra-sync.py --caption
+
+# Preview caption changes only
+python3 immich-ultra-sync.py --caption --dry-run --only-new
+```
+
+
+## Time
+
+This module syncs capture timestamps from Immich into standard EXIF/XMP date fields.
+
+**EXIF/XMP fields used:**
+- `DateTimeOriginal`
+- `CreateDate`
+- `XMP:CreateDate`
+- `XMP-photoshop:DateCreated`
+
+**Command-line flags (relevant):**
+- `--time`  
+  Enable syncing of time/date metadata (included in `--all`).
+- `--only-new` / `--dry-run`  
+  (General flags) Preview or skip files without metadata changes.
+
+**Environment variables:**
+- `TZ` — Timezone used for date handling (default: `Europe/Berlin` unless overridden).
+
+**Notes / Cautions:**
+- Changing file EXIF timestamps can affect sorting in photo apps and may trigger re-indexing. Use `--dry-run` first to preview changes.
+- The tool attempts to preserve timezone semantics; verify `TZ` is set correctly for your library if your workflow relies on timezone-aware timestamps.
+
+**Examples:**
+```bash
+# Sync timestamps
+python3 immich-ultra-sync.py --time
+
+# Preview timestamp updates
+python3 immich-ultra-sync.py --time --dry-run --only-new
+```
+
+
+## Rating (Favorites)
+
+Favorites in Immich are mapped to a numerical rating in the file metadata.
+
+**EXIF/XMP fields used:**
+- `Rating` (EXIF/XMP rating; favorites map to `5`, not-favorites map to `0`)
+
+**Command-line flags (relevant):**
+- `--rating`  
+  Enable syncing of favorites/ratings (included in `--all`).
+- `--only-new` / `--dry-run`  
+  (General flags) Preview or skip files without metadata changes.
+
+**Notes:**
+- The tool maps Immich "favorite" to a 5-star rating. Non-favorites are written as `0` unless `--only-new` and the value on disk already matches.
+- Some applications interpret rating differently; verify compatibility with downstream tools.
+
+**Examples:**
+```bash
+# Sync favorites as ratings
+python3 immich-ultra-sync.py --rating
+
+# Preview rating updates only
+python3 immich-ultra-sync.py --rating --dry-run --only-new
+```
+
+General reminder: the `--all` flag enables the core modules (`people`, `gps`, `caption`, `time`, `rating`) for convenience, but opt-in features such as `--albums` and `--face-coordinates` must be enabled explicitly.
+
+---
 
 ## Album Synchronization
 
@@ -282,6 +448,8 @@ The `--face-coordinates` flag enables syncing of Immich face detection bounding 
 - `--face-coordinates` is opt-in and not included in `--all`
 - Requires Immich API to return face bounding box data in the asset details (available in recent Immich versions)
 - Unnamed persons are skipped
+
+---
 
 ## Documentation
 
