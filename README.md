@@ -402,7 +402,6 @@ python3 immich-ultra-sync.py --rating --dry-run --only-new
 
 General reminder: the `--all` flag enables the core modules (`people`, `gps`, `caption`, `time`, `rating`) for convenience, but opt-in features such as `--albums` and `--face-coordinates` must be enabled explicitly.
 
----
 
 ## Album Synchronization
 
