@@ -35,6 +35,7 @@ from api import (
 from exif import (
     ExifToolHelper, check_exiftool,
     build_exif_args, get_current_exif_values, extract_desired_values, normalize_exif_value
+    execute_with_sidecar_and_msphoto
 )
 
 # ==============================================================================
