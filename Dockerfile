@@ -1,20 +1,15 @@
-# Multi-Stage Build: Builder-Stage für Abhängigkeiten
-FROM python:3.11-slim AS builder
-
-# Installiere Build-Abhängigkeiten (z.B. exiftool)
-RUN apt-get update && apt-get install -y \ 
-    exiftool \ 
-    && rm -rf /var/lib/apt/lists/*
-
 # Runtime-Stage: Schlankes finales Image
-FROM python:3.11-slim AS runtime
+FROM python:3.11-slim
 
-# Kopiere ExifTool-Binary und Perl-Module aus Builder-Stage
-COPY --from=builder /usr/bin/exiftool /usr/bin/exiftool
-COPY --from=builder /usr/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu
-COPY --from=builder /usr/share/perl5 /usr/share/perl5
-# Optional: Kopiere weitere @INC-Pfade, falls nötig (z.B. /etc/perl)
-COPY --from=builder /etc/perl /etc/perl
+RUN apt-get update && apt-get install -y \
+    curl \
+    rsync \
+    postgresql-client \
+    gzip \
+    coreutils \
+    findutils \
+    exiftool \
+    && rm -rf /var/lib/apt/lists/*
 
 # Installiere Python-Abhängigkeiten (ohne Cache für Sicherheit)
 RUN pip install --no-cache-dir requests tqdm
@@ -25,8 +20,6 @@ WORKDIR /app
 # Kopiere das GESAMTE script-Verzeichnis, damit alle Module (api.py, utils.py, etc.) da sind
 COPY script/ /app/
 
-# Mache die Scripts ausführbar (noch als root)
-# RUN chmod +x /app/immich-ultra-sync.py /app/healthcheck.py
 
 # Sicherstellen, dass die Dateien dem User 'app' gehören
 RUN chmod +x /app/*.py
