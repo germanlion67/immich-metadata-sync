@@ -9,6 +9,9 @@ services:
     volumes:
       - /home/immich/immich-library/library:/library  # Mount your photo library
       - ./logs:/app/logs  # Optional: Persist logs
+      
+      # USB-Backup-Ziel (read-write) optional für Backup
+      - /mnt/usb-backup:/backup:rw
     env_file:
       - stack.env
     healthcheck:
@@ -20,5 +23,3 @@ services:
     # Optional: Ports if your script later adds a web server
     # ports:
     #   - "8080:8080"
-
-  
