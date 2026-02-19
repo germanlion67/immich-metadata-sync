@@ -205,6 +205,16 @@ LOG_FILE=/app/logs/immich_ultra_sync.txt
 IMMICH_PHOTO_DIR=/library
 IMMICH_PATH_SEGMENTS=4
 TZ=Europe/Berlin
+
+# Optional für Backup
+BACKUP_TARGET=/backup
+DB_HOST=immich_postgres
+DB_PORT=5432
+DB_USERNAME=postgres
+DB_PASSWORD=postgres
+DB_NAME=immich
+KEEP_BACKUPS=7
+
 ```
 
 Then run:
