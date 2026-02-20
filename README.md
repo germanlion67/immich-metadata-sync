@@ -251,12 +251,34 @@ Common flags:
 - `--albums` - Sync album information to XMP metadata (opt-in, not included in `--all`)
 - `--face-coordinates` - Sync face bounding boxes as MWG-RS regions to XMP (opt-in, not included in `--all`)
 - `--dry-run` - Preview without writing
-- `--only-new` - Skip files that already have metadata
+- `--only-new` - Skip files that already have up-to-date metadata (no changes detected)
 - `--resume` / `--clear-checkpoint` - Continue or reset progress
 - `--clear-album-cache` - Clear the album cache before running (forces fresh fetch from API)
 - `--export-stats json|csv` - Capture run statistics
 - `--log-level {DEBUG,INFO,WARNING,ERROR}` - Set logging verbosity
 
+
+### Understanding `--only-new`
+
+The `--only-new` flag enables **change detection** to reduce unnecessary disk writes:
+
+**How it works:**
+1. Reads current EXIF/XMP values from the file
+2. Compares them with the desired values from Immich
+3. Only writes if differences are detected (e.g., Rating 0 → 4)
+
+**Use cases:**
+- ✅ **Repeated syncs:** Only update files when Immich metadata changes
+- ✅ **Performance:** Reduces disk I/O on large libraries
+- ❌ **First sync:** Not needed (all files will be updated anyway)
+
+**Example:**
+```bash
+# Initial sync (all files updated)
+python3 immich-ultra-sync.py --all
+
+# Subsequent syncs (only changed files)
+python3 immich-ultra-sync.py --all --only-new
 
 ---
 
@@ -544,6 +566,13 @@ The `--face-coordinates` flag enables syncing of Immich face detection bounding 
 - Enable album cache to reduce API calls
 - Adjust batch size via `IMMICH_ASSET_BATCH_SIZE`
 
+**`--only-new` skips files that should be updated:**
+- **Symptom:** Files with changed metadata (e.g., new ratings in Immich) are skipped
+- **Cause:** Bug in versions < 1.6 where `--only-new` skipped all files with any metadata
+- **Solution:** 
+  - Upgrade to v1.6+ or run without `--only-new` flag
+  - Use `--dry-run` to preview which files would be updated
+  - 
 ## Development
 
 ### Project Structure
