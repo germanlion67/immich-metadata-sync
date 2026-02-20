@@ -614,6 +614,19 @@ def build_exif_args(
             star_rating = asset.get("rating")
         is_favorite = asset.get("isFavorite", False)
 
+        # === TEMPORARY DEBUG - Remove after testing ===
+        #orig_path = asset.get("originalPath", "unknown")
+        #exif_rating = exif.get("rating")
+        #asset_rating = asset.get("rating")
+        #log(f"[RATING-DEBUG] File: {orig_path}", log_file, LogLevel.INFO)
+        #log(f"[RATING-DEBUG]   exif.rating={exif_rating}, asset.rating={asset_rating}, isFavorite={is_favorite}", log_file, LogLevel.INFO)
+        #if star_rating is None:
+            #log(f"[RATING-DEBUG]   → star_rating=None, will calculate below", log_file, LogLevel.INFO)
+        #else:
+            #log(f"[RATING-DEBUG]   → star_rating={star_rating}", log_file, LogLevel.INFO)
+        # === END DEBUG ===
+
+
         if star_rating is not None:
             star_rating = int(star_rating)
         elif is_favorite:
