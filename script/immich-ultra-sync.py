@@ -132,18 +132,8 @@ def process_asset(
             # log(f"DEBUG {clean_rel}: Tag={tag} | Current='{normalized_current}' | Desired='{normalized_desired}'", log_file, LogLevel.DEBUG)
             fields_to_update.append(tag)
 
-    # For --only-new mode: skip if ANY value already exists
-    if only_new and current_values:
-        log(f"SKIP: {clean_rel} - Already has EXIF data (--only-new mode)", log_file, LogLevel.DEBUG)
-        return "skipped"
-
-
-    # Standard mode: skip if no updates needed
+    # Skip if no updates needed (applies to both modes)
     if not fields_to_update:
-        # For --only-new mode: skip only if no changes AND already has data
-        if only_new and current_values:
-            log(f"SKIP: {clean_rel} - Already has EXIF data (--only-new mode)", log_file, LogLevel.DEBUG)
-            return "skipped"
         log(f"SKIP: {clean_rel} - Already up to date", log_file, LogLevel.DEBUG)
         return "skipped"
     
