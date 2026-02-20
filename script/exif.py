@@ -207,7 +207,7 @@ def get_current_exif_values(full_path: str, active_modes: List[str]) -> Dict[str
         ])
     if "rating" in active_modes:
         tags_to_read.extend(["Rating", "XMP:Rating", "MicrosoftPhoto:Rating", "RatingPercent",
-                             "XMP:Label", "XMP:Favorite"])
+                             "XMP:Label"])
     if "albums" in active_modes:
         tags_to_read.extend(["Event", "HierarchicalSubject", "UserComment"])
     if "face-coordinates" in active_modes:
@@ -324,9 +324,6 @@ def normalize_exif_value(value: str, tag: str) -> str:
     if tag == "XMP:Label" or tag_short == "Label":
         return value.strip()
 
-    # XMP:Favorite: normalize to 0/1
-    if tag == "XMP:Favorite" or tag_short == "Favorite":
-        return value.strip()
 
     # DateTime fields: normalize separators
     if tag in ["DateTimeOriginal", "CreateDate", "ModifyDate"] or tag_short in [
@@ -642,17 +639,14 @@ def build_exif_args(
             f"-RatingPercent={rating_percent}",
         ])
 
-        # Favorite: written independently of star rating
+        # Favorite: only SET the label when favorite
+        # Note: We don't delete Label when not favorite because:
+        # 1. ExifTool might not support deletion for all file types
+        # 2. Label can be used for other purposes (color coding, etc.)
+        # 3. This prevents update loops when Label can't be removed
         if is_favorite:
-            args.extend([
-                "-XMP:Label=Favorite",
-                "-XMP:Favorite=1",
-            ])
-        else:
-            args.extend([
-                "-XMP:Label=",
-                "-XMP:Favorite=0",
-            ])
+            args.append("-XMP:Label=Favorite")
+            changes.append("Label")
         changes.append("Rating")
 
     # 6. ALBUM SYNC (new section after rating)
