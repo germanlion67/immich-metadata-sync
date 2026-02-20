@@ -137,11 +137,16 @@ def process_asset(
         log(f"SKIP: {clean_rel} - Already has EXIF data (--only-new mode)", log_file, LogLevel.DEBUG)
         return "skipped"
 
+
     # Standard mode: skip if no updates needed
     if not fields_to_update:
+        # For --only-new mode: skip only if no changes AND already has data
+        if only_new and current_values:
+            log(f"SKIP: {clean_rel} - Already has EXIF data (--only-new mode)", log_file, LogLevel.DEBUG)
+            return "skipped"
         log(f"SKIP: {clean_rel} - Already up to date", log_file, LogLevel.DEBUG)
         return "skipped"
-
+    
     if dry_run:
         log(f"[DRY] {clean_rel} - Would update: {', '.join(fields_to_update)}", log_file, LogLevel.INFO)
         return "simulated"
