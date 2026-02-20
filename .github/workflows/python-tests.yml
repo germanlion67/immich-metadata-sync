@@ -49,13 +49,12 @@ jobs:
 
       - name: Run tests with pytest
         env:
-          # falls Tests Umgebungsvariablen benötigen, setze sie hier
           TZ: "UTC"
         run: |
-          # pytest will also discover unittest-style tests
-          pytest tests/ -v --cov=script --cov-report=term-missing
+          # produce both terminal coverage and xml artifact
+          pytest tests/ -v --cov=script --cov-report=term-missing --cov-report=xml
 
-      - name: Upload coverage report (optional)
+      - name: Upload coverage report
         if: always()
         uses: actions/upload-artifact@v4
         with:
