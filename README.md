@@ -37,7 +37,7 @@ Syncing Immich metadata back into your original media files.
 - **Captions** → `XMP:Description`, `IPTC:Caption-Abstract`
 - **Time** → `AllDates` (DateTimeOriginal/CreateDate/ModifyDate), `XMP:CreateDate`, `XMP:ModifyDate`, `XMP:MetadataDate`, `IPTC:DateCreated`, `IPTC:TimeCreated`, `QuickTime:CreateDate`, `QuickTime:ModifyDate`, `FileCreateDate`, `FileModifyDate`, `XMP-photoshop:DateCreated`
 - **Rating** → `XMP:Rating`, `MicrosoftPhoto:Rating`, `Rating`, `RatingPercent` (star rating 0–5)
-- **Favorite** → `XMP:Label` (`Favorite`), `XMP:Favorite` (`1`/`0`) — tracked independently from star rating
+- **Favorite** → `XMP:Label` (`Favorite`) — tracked independently from star rating
 - **Albums** → `XMP-iptcExt:Event`, `XMP:HierarchicalSubject` and `EXIF:UserComment` → Windows "Kommentare" (when `--albums` flag is used)
 - **Face Coordinates** → `RegionInfo` (MWG-RS XMP regions with bounding boxes, when `--face-coordinates` flag is used)
 
@@ -451,12 +451,21 @@ Star ratings and favorites are now tracked **independently** in the file metadat
 - Else if asset is a favorite → fallback to 5 stars
 - Otherwise → 0 stars
 
+**Favorite logic:**
+- If `isFavorite=true` → set `XMP:Label=Favorite`
+- If `isFavorite=false` → leave `XMP:Label` unchanged (not deleted)
+
+**Why we don't delete the label:**
+- `XMP:Label` can be used for other purposes (color coding: "Red", "Green", "Select", etc.)
+- ExifTool 13.25 does not support the `XMP:Favorite` tag (non-standard extension)
+- Deleting labels might cause compatibility issues with other tools
+
 **Favorite/Heart fields (independent of star rating):**
 
 | Target Tag | Value |
 |---|---|
 | `XMP:Label` | `Favorite` (if favorited), empty (if not) |
-| `XMP:Favorite` | `1` (if favorited), `0` (if not) |
+**Note:** We only set `XMP:Label=Favorite` when a file is favorited. When not favorited, the label is left unchanged to preserve other potential label values (e.g., color coding).
 
 **Command-line flags (relevant):**
 - `--rating`  
@@ -572,7 +581,13 @@ The `--face-coordinates` flag enables syncing of Immich face detection bounding 
 - **Solution:** 
   - Upgrade to v1.6+ or run without `--only-new` flag
   - Use `--dry-run` to preview which files would be updated
-  - 
+
+**XMP:Favorite is not supported:**
+- **Issue:** ExifTool 13.25 does not recognize the `XMP:Favorite` tag as a standard XMP field
+- **Workaround:** We use `XMP:Label=Favorite` instead, which is widely supported by photo management tools (Lightroom, digiKam, Darktable, etc.)
+- **Note:** Immich stores favorite status in its database; EXIF sync uses `XMP:Label` for compatibility with third-party tools
+
+
 ## Development
 
 ### Project Structure
