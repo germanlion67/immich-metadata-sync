@@ -35,6 +35,11 @@ Proxmox Host (pve3)
 3. Docker und docker-compose installiert im LXC
 4. Immich läuft und erstellt tägliche Backups
 
+> Hinweis Speicherplatz:
+> Für ein **vollständiges** Backup (Library + DB) muss das Backup-Ziel mindestens ungefähr
+> **Library-Größe + 25% Puffer** (für DB/Metadaten/Overhead) frei haben.
+> Beispiel: Library 110GB → benötigt grob ~138GB freien Platz.
+
 ## Installation
 
 ### Schritt 1: USB-Festplatte auf Proxmox-Host vorbereiten
@@ -47,7 +52,7 @@ ssh root@pve3
 lsblk -o NAME,SIZE,TYPE,MOUNTPOINT,FSTYPE
 
 # Prüfe Dateisystem (sollte ext4 sein)
-blkid | grep -E "sdc1|sdb1"
+blkid | grep ext4
 
 # Falls NTFS: Auf ext4 umformatieren (LÖSCHT ALLE DATEN!)
 # umount /dev/sdX1
@@ -59,7 +64,10 @@ blkid | grep ext4
 # Mountpoint erstellen
 mkdir -p /mnt/usb-backup
 
-# Temporär mounten
+# Temporär mounten:
+# WICHTIG: Je nach Setup liegt ext4 auf einer Partition (/dev/sdX1) ODER direkt auf dem Gerät (/dev/sdX)!
+# - Wenn lsblk eine Partition sdX1 mit ext4 zeigt: mount /dev/sdX1 /mnt/usb-backup
+# - Wenn blkid ext4 auf /dev/sdX zeigt (und keine sdX1 existiert): mount /dev/sdX /mnt/usb-backup
 mount /dev/sdX1 /mnt/usb-backup
 
 # Prüfen
@@ -83,7 +91,10 @@ UUID=xxxx-xxxx-xxxx /mnt/usb-backup ext4 defaults,nofail 0 2
 
 # Test
 umount /mnt/usb-backup
+
+# Hinweis: Nach Änderungen an /etc/fstab ggf. systemd neu laden:
 systemctl daemon-reload
+
 mount -a
 df -h | grep usb-backup
 ```
@@ -139,6 +150,9 @@ pct restart $CT_ID
 
 ### Schritt 4: Container bauen und starten
 
+> Hinweis: Viele Setups nutzen Portainer statt `docker-compose build`. Wichtig ist am Ende nur,
+> dass der Container `immich-metadata-sync` läuft und die Volumes korrekt gemountet sind (siehe Schritt 5).
+
 ```bash
 # Im LXC-Container (pct enter [CT-ID])
 cd /pfad/zu/immich-metadata-sync
@@ -167,14 +181,24 @@ docker ps | grep immich-metadata-sync
 docker exec immich-metadata-sync ls -lh /library | head -n 5
 
 # Prüfe Immich-Backup-Mount
-docker exec immich-metadata-sync ls -lh /immich-backups
-
+docker exec immich-metadata-sync ls -lh /immich-backups | head -n 5
 # Sollte zeigen: immich-db-backup-*.sql.gz Dateien
 
 # Prüfe USB-Mount
 docker exec immich-metadata-sync ls -lh /backup
 docker exec immich-metadata-sync touch /backup/test.txt
 docker exec immich-metadata-sync rm /backup/test.txt
+```
+
+**Portainer Stack Beispiel (immich-metadata-sync):**
+```yaml
+services:
+  immich-metadata-sync:
+    volumes:
+      - /mnt/immich-library/library:/library:ro
+      - /mnt/immich-library/backups:/immich-backups:ro
+      - /mnt/usb-backup:/backup
+      - ./logs:/app/logs
 ```
 
 ### Schritt 6: Erstes Backup ausführen
@@ -187,7 +211,15 @@ chmod +x script/backup/run-backup.sh
 ./script/backup/run-backup.sh
 
 # Variante B: Direkt im Container
-docker exec immich-metadata-sync /app/script/backup/immich-backup.sh
+# ACHTUNG: Der Pfad des Scripts im Container kann je nach Image-Version abweichen.
+# In aktuellen Images liegt es typischerweise hier:
+docker exec immich-metadata-sync /app/backup/immich-backup.sh
+
+# Falls "permission denied" kommt (Script nicht executable), einmalig Execute-Bit setzen:
+docker exec --user 0 immich-metadata-sync chmod +x /app/backup/immich-backup.sh
+
+# Alternative ohne chmod:
+docker exec immich-metadata-sync bash /app/backup/immich-backup.sh
 
 # Logs live verfolgen
 docker exec immich-metadata-sync tail -f /backup/backup.log
@@ -290,7 +322,7 @@ Das Script prüft automatisch vorhandene Immich-Backups:
 crontab -e
 
 # Täglich um 3:00 Uhr
-0 3 * * * cd /pfad/zu/immich-metadata-sync && docker exec immich-metadata-sync /app/script/backup/immich-backup.sh >> /var/log/immich-backup-cron.log 2>&1
+0 3 * * * docker exec immich-metadata-sync /app/backup/immich-backup.sh >> /var/log/immich-backup-cron.log 2>&1
 ```
 
 ### Option 2: Cron auf Proxmox-Host (empfohlen)
@@ -311,7 +343,7 @@ LOG_FILE="/var/log/immich-backup-cron.log"
     echo "Backup gestartet: $(date)"
     echo "========================================"
     
-    pct exec $CT_ID -- docker exec immich-metadata-sync /app/script/backup/immich-backup.sh
+    pct exec $CT_ID -- docker exec immich-metadata-sync /app/backup/immich-backup.sh
     
     echo "Beendet: $(date)"
     echo ""
@@ -419,7 +451,7 @@ pct restart [CT-ID]
 
 ### "rsync" oder "pg_dump" nicht gefunden
 ```bash
-# Prüfe Dockerfile
+# Prüfe Dockerfile / Image
 docker exec immich-metadata-sync which rsync
 docker exec immich-metadata-sync which pg_dump
 
@@ -487,7 +519,7 @@ docker exec immich_postgres pg_dump -U postgres immich | gzip > /mnt/immich-libr
 - **pg_dump (Fallback):** 1-3 Min
 
 ### Speicherplatzbedarf
-- **Minimal:** 1x Library-Größe + 200MB (DB)
+- **Minimal:** 1x Library-Größe + ~25% Puffer (Script-Check)
 - **Empfohlen:** 3x Library-Größe (für mehrere Backups)
 - **Beispiel:** 500GB Library → 1.5TB USB empfohlen
 
@@ -568,7 +600,7 @@ docker-compose build --no-cache
 docker-compose up -d
 
 # 4. Test-Backup
-docker exec immich-metadata-sync /app/script/backup/immich-backup.sh
+docker exec immich-metadata-sync /app/backup/immich-backup.sh
 ```
 
 ## Support & Links
