@@ -200,7 +200,7 @@ services:
     volumes:
       - /home/immich/immich-library/library:/library:ro
       - /home/immich/immich-library/backups:/immich-backups:ro
-      - /mnt/usb-backup:/backup
+      - /mnt/usb-backup:/backup:rw
       - ./logs:/app/logs
 ```
 
