@@ -20,6 +20,9 @@ Proxmox Host (pve3)
 ├── /mnt/usb-backup/              ← USB-Backup-Ziel
 │
 └── LXC Container
+    ├── /home/immich/immich-library/          ← Immich-Daten auf Host
+    │   ├── library/                  ← Alle Bilder
+    │   └── backups/                  ← Tägliche DB-Backups (Immich)
     └── Docker
         ├── Immich Container
         └── immich-metadata-sync  ← Backup-Container
@@ -116,7 +119,7 @@ nano /etc/pve/lxc/${CT_ID}.conf
 
 # Am Ende hinzufügen:
 mp0: /mnt/usb-backup,mp=/mnt/usb-backup
-mp1: /mnt/immich-library,mp=/mnt/immich-library
+
 
 # Speichern: Ctrl+O, Enter, Ctrl+X
 
@@ -128,7 +131,7 @@ pct start $CT_ID
 pct enter $CT_ID
 df -h | grep mnt
 ls -la /mnt/usb-backup
-ls -la /mnt/immich-library/backups
+ls -la /home/immich/immich-library/backups
 exit
 ```
 
@@ -139,7 +142,7 @@ nano /etc/pve/lxc/${CT_ID}.conf
 
 # Ändere die mp-Zeilen zu:
 mp0: /mnt/usb-backup,mp=/mnt/usb-backup,shared=1
-mp1: /mnt/immich-library,mp=/mnt/immich-library,shared=1
+mp1: /home/immich/immich-library/library,mp=/mnt/immich-library,shared=1
 
 # Rechte anpassen (für unprivileged LXC)
 chown -R 100000:100000 /mnt/usb-backup
@@ -195,8 +198,8 @@ docker exec immich-metadata-sync rm /backup/test.txt
 services:
   immich-metadata-sync:
     volumes:
-      - /mnt/immich-library/library:/library:ro
-      - /mnt/immich-library/backups:/immich-backups:ro
+      - /home/immich/immich-library/library:/library:ro
+      - /home/immich/immich-library/library/backups:/immich-backups:ro
       - /mnt/usb-backup:/backup
       - ./logs:/app/logs
 ```
@@ -383,10 +386,10 @@ docker exec -i immich_postgres psql -U postgres -d immich < /tmp/immich_restore.
 rm /tmp/immich_restore.sql
 
 # 3. Auf Proxmox-Host: Library wiederherstellen
-mv /mnt/immich-library/library /mnt/immich-library/library.backup.$(date +%Y%m%d)
-mkdir -p /mnt/immich-library/library
-rsync -avh /mnt/usb-backup/latest/library/ /mnt/immich-library/library/
-chown -R 1000:1000 /mnt/immich-library/library
+mv /home/immich/immich-library/library /home/immich/immich-library/library.backup.$(date +%Y%m%d)
+mkdir -p /home/immich/immich-library/library
+rsync -avh /mnt/usb-backup/latest/library/ /home/immich/immich-library/library/
+chown -R 1000:1000 /home/immich/immich-library/library
 
 # 4. Im LXC: Immich starten
 docker-compose up -d
@@ -419,7 +422,7 @@ docker exec immich-metadata-sync ls -la /library /backup /immich-backups
 ### "Immich-Backup-Verzeichnis nicht gefunden"
 ```bash
 # Prüfe Mount im LXC
-ls -la /mnt/immich-library/backups
+ls -la /home/immich/immich-library/library/backups
 
 # Prüfe Mount im Container
 docker exec immich-metadata-sync ls -la /immich-backups
@@ -480,7 +483,7 @@ cat /etc/fstab | grep usb-backup
 ### Immich-Backups älter als 5 Tage
 ```bash
 # Prüfe wann letztes Backup erstellt wurde
-ls -lht /mnt/immich-library/backups/ | head
+ls -lht /home/immich/immich-library/library/backups/ | head
 
 # Prüfe Immich-Backup-Job
 cd /pfad/zu/immich
@@ -490,7 +493,7 @@ docker-compose logs immich_postgres | grep -i backup
 cat docker-compose.yml | grep -A 5 "backup"
 
 # Manuell Backup triggern
-docker exec immich_postgres pg_dump -U postgres immich | gzip > /mnt/immich-library/backups/manual-backup-$(date +%Y%m%d).sql.gz
+docker exec immich_postgres pg_dump -U postgres immich | gzip > /home/immich/immich-library/library/backups/manual-backup-$(date +%Y%m%d).sql.gz
 ```
 
 ## Umgebungsvariablen
@@ -570,7 +573,7 @@ tail -100 /mnt/usb-backup/backup.log
 gunzip -t /mnt/usb-backup/latest/database/*.sql.gz && echo "✅ DB-Backup OK"
 
 # 5. Immich-Backup-Job Status
-ls -lht /mnt/immich-library/backups/ | head -3
+ls -lht /home/immich/immich-library/library/backups/ | head -3
 ```
 
 ### Alarme einrichten (optional)
