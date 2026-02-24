@@ -14,20 +14,20 @@ Dieses Setup ermöglicht vollständige Backups von Immich (Datenbank + Bilder) a
 
 ```
 Proxmox Host (pve3)
-├── /mnt/immich-library/          ← Immich-Daten auf Host
+├── /home/immich/immich-library/  ← Immich-Daten auf Host
 │   ├── library/                  ← Alle Bilder
 │   └── backups/                  ← Tägliche DB-Backups (Immich)
 ├── /mnt/usb-backup/              ← USB-Backup-Ziel
 │
 └── LXC Container
-    ├── /home/immich/immich-library/          ← Immich-Daten auf Host
+    ├── /home/immich/immich-library/  ← Immich-Daten auf LXC
     │   ├── library/                  ← Alle Bilder
     │   └── backups/                  ← Tägliche DB-Backups (Immich)
     └── Docker
         ├── Immich Container
         └── immich-metadata-sync  ← Backup-Container
-            ├── /library          → gemountet von /mnt/immich-library/library
-            ├── /immich-backups   → gemountet von /mnt/immich-library/backups
+            ├── /library          → gemountet von /home/immich/immich-library/library
+            ├── /immich-backups   → gemountet von /home/immich/immich-library/backups
             └── /backup           → gemountet von /mnt/usb-backup
 ```
 
@@ -493,7 +493,7 @@ docker-compose logs immich_postgres | grep -i backup
 cat docker-compose.yml | grep -A 5 "backup"
 
 # Manuell Backup triggern
-docker exec immich_postgres pg_dump -U postgres immich | gzip > /home/immich/immich-library/library/backups/manual-backup-$(date +%Y%m%d).sql.gz
+docker exec immich_postgres pg_dump -U postgres immich | gzip > /home/immich/immich-library/backups/manual-backup-$(date +%Y%m%d).sql.gz
 ```
 
 ## Umgebungsvariablen
