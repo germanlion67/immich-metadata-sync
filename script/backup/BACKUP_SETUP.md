@@ -199,7 +199,7 @@ services:
   immich-metadata-sync:
     volumes:
       - /home/immich/immich-library/library:/library:ro
-      - /home/immich/immich-library/library/backups:/immich-backups:ro
+      - /home/immich/immich-library/backups:/immich-backups:ro
       - /mnt/usb-backup:/backup
       - ./logs:/app/logs
 ```
@@ -422,7 +422,7 @@ docker exec immich-metadata-sync ls -la /library /backup /immich-backups
 ### "Immich-Backup-Verzeichnis nicht gefunden"
 ```bash
 # Prüfe Mount im LXC
-ls -la /home/immich/immich-library/library/backups
+ls -la /home/immich/immich-library/backups
 
 # Prüfe Mount im Container
 docker exec immich-metadata-sync ls -la /immich-backups
@@ -483,7 +483,7 @@ cat /etc/fstab | grep usb-backup
 ### Immich-Backups älter als 5 Tage
 ```bash
 # Prüfe wann letztes Backup erstellt wurde
-ls -lht /home/immich/immich-library/library/backups/ | head
+ls -lht /home/immich/immich-library/backups/ | head
 
 # Prüfe Immich-Backup-Job
 cd /pfad/zu/immich
@@ -573,7 +573,7 @@ tail -100 /mnt/usb-backup/backup.log
 gunzip -t /mnt/usb-backup/latest/database/*.sql.gz && echo "✅ DB-Backup OK"
 
 # 5. Immich-Backup-Job Status
-ls -lht /home/immich/immich-library/library/backups/ | head -3
+ls -lht /home/immich/immich-library/backups/ | head -3
 ```
 
 ### Alarme einrichten (optional)
