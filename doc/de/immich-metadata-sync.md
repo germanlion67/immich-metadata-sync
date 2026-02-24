@@ -3,6 +3,8 @@
 
 Diese Dokumentation beschreibt Aufbau, Konfiguration und Ablauf des Skripts `immich-ultra-sync.py` im Ordner `/immich-metadata-sync/script/`. Ziel ist es, Immich-Metadaten (Personen, GPS, Beschreibungen, Zeitstempel, Rating, Alben, Gesichtskoordinaten) verlustfrei in die Originaldateien zurückzuschreiben.
 
+Für detaillierte Informationen siehe die englische README.md im Hauptverzeichnis.
+
 ## Architektur und Modularisierung
 
 Das Projekt wurde in mehrere Module aufgeteilt für bessere Wartbarkeit:
@@ -60,6 +62,12 @@ script/
    - Datei: `immich_ultra_sync.txt` im Skript-Verzeichnis.  
    - Enthält Startparameter, Pfade mit Änderungen, Übersprünge und Fehler.
    - Konfigurierbare Log-Level: DEBUG, INFO, WARNING, ERROR
+
+## Backup
+
+Das Tool enthält umfassende Backup-Funktionalität für Ihre Immich-Instanz, einschließlich Datenbank- und Bibliotheks-Backups.
+
+Für detaillierte Informationen siehe die englische README.md und `script/backup/BACKUP_SETUP.md`.
 
 ## CI/CD und Tests
 
