@@ -23,6 +23,7 @@ Syncing Immich metadata back into your original media files.
     - [Rating & Favorites](#rating--favorites)
     - [Album Synchronization](#album-synchronization)
     - [Face Coordinates (MWG-RS)](#face-coordinates-mwg-rs)
+- [Backup](#backup)
 - [Documentation](#documentation)
 - [Troubleshooting](#troubleshooting)
 - [Development](#development)
@@ -535,6 +536,32 @@ The `--face-coordinates` flag enables syncing of Immich face detection bounding 
 - Requires Immich API to return face bounding box data in the asset details (available in recent Immich versions)
 - Unnamed persons are skipped
 
+## Backup
+
+This tool includes comprehensive backup functionality for your Immich instance, including database and library backups.
+
+### Features
+
+- Automated database backups using existing Immich backups or direct PostgreSQL dumps
+- Full library backup with rsync
+- USB drive automount and backup
+- Cron job automation
+- Backup verification and manifest
+
+### Quick Start
+
+1. Mount your backup drive (e.g., USB) to `/mnt/usb-backup` or set `BACKUP_TARGET` environment variable.
+
+2. Run the backup script:
+
+```bash
+docker exec immich-metadata-sync /app/script/immich-backup.sh
+```
+
+3. For automated backups, set up cron jobs using the provided scripts in `script/backup/`.
+
+See `script/backup/BACKUP_SETUP.md` for detailed setup instructions.
+
 ---
 
 ## Documentation
@@ -542,6 +569,10 @@ The `--face-coordinates` flag enables syncing of Immich face detection bounding 
 - **Docker environment setup:** [runbook.md](runbook.md)  
 - **Script reference:** [doc/immich-metadata-sync.md](doc/immich-metadata-sync.md)  
 - **German documentation:** see [doc/de](doc/de/)
+  - [Technical Documentation](doc/de/immich-metadata-sync.md) (German)
+  - [Setup Guide](doc/de/Einrichtung.md) (German)
+  - [Internal Details](doc/de/immich-interna.md) (German)
+  - [EXIF Mapping Table](doc/de/immich_exif_mapping.md) (German)
 
 ## Troubleshooting
 
