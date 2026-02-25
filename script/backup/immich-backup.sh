@@ -596,7 +596,8 @@ create_latest_symlink() {
     local latest_link="${BACKUP_TARGET}/latest"
     
     rm -f "$latest_link"
-    ln -sfn "$BACKUP_DIR" "$latest_link"
+    cd "$BACKUP_TARGET"
+    ln -sfn "$(basename "$BACKUP_DIR")" latest
     
     log "✅ Symlink 'latest' → $(basename "$BACKUP_DIR")"
 }
