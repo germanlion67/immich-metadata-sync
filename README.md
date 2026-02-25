@@ -1,13 +1,39 @@
 # 📸 IMMICH ULTRA-SYNC 
 *v1.5*  
 **!** This tool requires the image editing program Immich.
-
-
 > Versioning note: see CHANGELOG.
 
 ![Docker Pulls](https://img.shields.io/docker/pulls/germanlion67/immich-metadata-sync) ![Python Tests](https://github.com/germanlion67/immich-metadata-sync/actions/workflows/pytest.yml/badge.svg)
 
-Syncing Immich metadata back into your original media files. 
+---
+
+
+## Project Overview: immich-metadata-sync
+
+The [immich-metadata-sync](https://github.com) utility is a specialized Python script designed to act as a bridge, writing **changes made within Immich** (such as person tags, time corrections, or GPS data) back into the **physical image files**.
+
+### Core Functionality
+It extracts metadata from the [Immich API](https://api.docs.immich.app) and uses [ExifTool](https://exiftool.org) to write it directly into the original files or sidecars. This makes information that is normally "trapped" inside the Immich database visible to external programs like **Windows Explorer**, **IrfanView**, or **XnView**.
+
+
+### 👍 Pros
+*   **Data Sovereignty:** Your manual efforts (e.g., naming faces or fixing timestamps) are saved into the file itself, remaining independent of the Immich database.
+*   **Interoperability:** Enables a seamless workflow between the Immich web interface and professional desktop photo management software.
+*   **No Vendor Lock-in:** You can migrate to other services at any time without losing the metadata organized within Immich.
+*   **Automation:** Can be easily integrated as a [Docker container](https://www.docker.com) or via cron jobs to keep your library permanently in sync.
+
+### ⚠️ Important Considerations
+*   **Backup Required:** Since the tool writes directly to your originals, a current backup of your library is mandatory before use.
+*   **Hash Changes:** Embedding metadata alters the file's binary hash. This may cause Immich to flag files as "modified" during re-scans.
+*   **Performance:** Rewriting thousands of files via API and ExifTool is resource-intensive and puts significant load on your CPU and disk I/O.
+*   **Beta Status:** Because [Immich](https://github.com) is in rapid development, the tool may require frequent updates to stay compatible with new API versions.
+
+
+**Recommendation:** Ideal for "Standard Upload" users who want their local files to remain perfectly tagged for offline use.
+
+---
+
+ 
 ## Table of Contents
 - [Features](#features)
 - [Requirements](#requirements)
