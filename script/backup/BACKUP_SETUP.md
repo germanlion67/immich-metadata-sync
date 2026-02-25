@@ -406,10 +406,6 @@ docker-compose up -d
 
 Siehe auch `RESTORE_INSTRUCTIONS.txt` im jeweiligen Backup-Verzeichnis für detaillierte Anweisungen.
 
-### Rückspielen auf ein neu Aufgesetztes immich
-
-#### Schritt 1 — Checkliste: USB‑SSD am neuen Proxmoxhost sauber mounten (inkl. Verzeichnisstruktur)
-
 ## Checkliste — Immich Restore auf neuen Proxmox-Host (unprivileged LXC) + DB Restore via `psql`
 **Ziel:** Immich (v2.5.0) auf neuem Proxmoxhost wiederherstellen inkl. Datenbank + kompletter Datenstruktur  
 **DB-Container-Name:** `immich_postgres` (bestätigt)  
