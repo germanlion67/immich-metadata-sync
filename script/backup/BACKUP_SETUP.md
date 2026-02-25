@@ -209,20 +209,26 @@ services:
 ```bash
 # Im LXC-Container
 
-# Variante A: Mit run-backup.sh (vom Host)
-chmod +x script/backup/run-backup.sh
-./script/backup/run-backup.sh
-
-# Variante B: Direkt im Container
-# ACHTUNG: Der Pfad des Scripts im Container kann je nach Image-Version abweichen.
-# In aktuellen Images liegt es typischerweise hier:
+# Variante A:
 docker exec immich-metadata-sync /app/backup/immich-backup.sh
+# falls nicht executable: : permission denied
+docker exec immich-metadata-sync bash /app/backup/immich-backup.sh
 
 # Falls "permission denied" kommt (Script nicht executable), einmalig Execute-Bit setzen:
 docker exec --user 0 immich-metadata-sync chmod +x /app/backup/immich-backup.sh
 
 # Alternative ohne chmod:
 docker exec immich-metadata-sync bash /app/backup/immich-backup.sh
+
+
+# im Container (Protainer-Container-Konsole)
+
+# Variante B:
+# ACHTUNG: Der Pfad des Scripts im Container kann je nach Image-Version abweichen.
+/app/backup/immich-backup.sh
+# oder:
+bash /app/backup/immich-backup.sh
+
 
 # Logs live verfolgen
 docker exec immich-metadata-sync tail -f /backup/backup.log
