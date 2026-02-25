@@ -1,6 +1,28 @@
-## Immich Metadata Exif-Sync Tool
-Dieses Tool synchronisiert in Immich erkannte Tags wie Personen (Gesichter), GPS-Koordinaten, Favorit-Status direkt zurück in die Metadaten (`EXIF/XMP`) der Originaldateien in deiner Immich-Library.
+#  Immich Metadata Exif-Sync Tool
 
+Das Tool [immich-metadata-sync](https://github.com) ist ein spezialisiertes Python-Skript, das als Brücke dient, um in **Immich vorgenommene Änderungen** (wie Personentags, Zeitkorrekturen oder Geodaten) dauerhaft in die **physischen Bilddateien** zu schreiben.
+
+## Kernfunktion
+Es extrahiert Metadaten aus der [Immich API](https://api.docs.immich.app) und schreibt diese mittels [ExifTool](https://exiftool.org) direkt in die Originaldateien oder Sidecars. Damit werden Informationen, die sonst nur innerhalb von Immich sichtbar wären, für externe Programme wie **Windows Explorer**, **IrfanView** oder **XnView** verfügbar.
+
+---
+
+## 👍 Positive Punkte
+*   **Daten-Souveränität:** Manuelle Arbeit (z. B. Gesichtszuordnung, korrigierte Aufnahmedaten) wird direkt in der Datei gespeichert und bleibt unabhängig von der Immich-Datenbank erhalten.
+*   **Interoperabilität:** Ermöglicht einen nahtlosen Workflow zwischen der Immich-Weboberfläche und klassischen Desktop-Bildverwaltungsprogrammen.
+*   **Vermeidung von Lock-in:** Ein späterer Umzug zu anderen Diensten ist problemlos möglich, da die Metadaten Teil der Bilddatei werden.
+*   **Automatisierung:** Kann einfach als [Docker-Container](https://www.docker.com) oder Cronjob integriert werden, um die Bibliothek permanent synchron zu halten.
+
+## ⚠️ Was zu beachten ist
+*   **Backup-Pflicht:** Da das Tool schreibend auf die Originale zugreift, ist ein aktuelles Backup der Library zwingend erforderlich.
+*   **Hash-Änderung:** Durch das Einbetten der Daten ändert sich der Datei-Hash. Dies kann bei Immich dazu führen, dass Dateien bei einem erneuten Scan als "verändert" erkannt werden.
+*   **Performance:** Das Umschreiben tausender Dateien via API und ExifTool ist rechenintensiv und beansprucht die Festplatten-I/O stark.
+*   **Entwicklungsstatus:** Da sich [Immich](https://github.com) schnell entwickelt, muss das Tool bei API-Änderungen zeitnah aktualisiert werden, um kompatibel zu bleiben.
+
+
+**Empfehlung:** Ideal für Nutzer des Standard-Uploads, die ihre Bilder auch lokal "sauber" verschlagwortet haben möchten.
+
+---
 
 
 ## 🛠 1. Vorbereitung auf dem Host
