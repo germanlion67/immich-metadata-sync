@@ -1,4 +1,4 @@
-# Checkliste — Immich Restore auf neuen Proxmox-Host (unprivileged LXC) + DB Restore via `psql`
+ # Checkliste — Immich Restore auf neuen Proxmox-Host (unprivileged LXC) + DB Restore via `psql`
 **Ziel:** Immich (v2.5.0) auf neuem Proxmoxhost wiederherstellen inkl. Datenbank + kompletter Datenstruktur  
 **DB-Container-Name:** `immich_postgres` (bestätigt)  
 **USB-Backup-Device:** `/dev/sdb2` (ext4)  
@@ -102,42 +102,64 @@ Optional:
 chmod -R 775 /home/immich/immich-library
 ```
 ---
-## Schritt 5 — Daten kopieren (im LXC)
+
+## Schritt 5 — rsync nachinstallieren + in Backup-Ordner `latest` wechseln (im LXC)
+> rsync ist auf minimalen LXC-Setups nicht immer vorinstalliert.
+
+### 5.1 rsync installieren
+Debian/Ubuntu:
+
+```bash
+apt update
+apt install -y rsync
+```
+
+### 5.2 In `latest` wechseln (Symlink prüfen)
+```bash
+cd /mnt/usb-backup/latest
+pwd
+ls -la
+```
+
+---
+
+
+## Schritt 6 — Daten kopieren (im LXC)
 > Empfehlung: Immich am Ziel während des Kopierens gestoppt lassen.
 
-### 5.1 Library kopieren
+### 6.1 Library kopieren
 ```bash
-rsync -aH --info=progress2 /mnt/usb-backup/latest/library/ /home/immich/immich-library/library/
+rsync -aH --info=progress2 ./library/ /home/immich/immich-library/library/
 ```
 
-### 5.2 Upload kopieren
+### 6.2 Upload kopieren
 ```bash
-rsync -aH --info=progress2 /mnt/usb-backup/latest/upload/ /home/immich/immich-library/upload/
+rsync -aH --info=progress2 ./upload/ /home/immich/immich-library/upload/
 ```
 
-### 5.3 Thumbs kopieren (optional, spart Recompute)
+### 6.3 Thumbs kopieren (optional, spart Recompute)
 ```bash
-rsync -aH --info=progress2 /mnt/usb-backup/latest/thumbs/ /home/immich/immich-library/thumbs/
+rsync -aH --info=progress2 ./thumbs/ /home/immich/immich-library/thumbs/
 ```
 
-### 5.4 Encoded Video kopieren (optional, spart Transcoding)
+### 6.4 Encoded Video kopieren (optional, spart Transcoding)
 ```bash
-rsync -aH --info=progress2 /mnt/usb-backup/latest/encoded-video/ /home/immich/immich-library/encoded-video/
+rsync -aH --info=progress2 ./encoded-video/ /home/immich/immich-library/encoded-video/
 ```
 
-### 5.5 Profile kopieren (optional)
+### 6.5 Profile kopieren (optional)
 ```bash
-rsync -aH --info=progress2 /mnt/usb-backup/latest/profile/ /home/immich/immich-library/profile/
+rsync -aH --info=progress2 ./profile/ /home/immich/immich-library/profile/
 ```
 
-### 5.6 DB-Backup-Datei(en) bereitstellen
+### 6.6 DB-Backup-Datei(en) bereitstellen
 Falls im Backup-Ordner `database/` existiert:
 
 ```bash
-rsync -a --info=progress2 /mnt/usb-backup/latest/database/ /home/immich/immich-library/backups/
+rsync -a --info=progress2 ./database/ /home/immich/immich-library/backups/
 ```
 ---
-## Schritt 6 — Ownership/Permissions setzen (im LXC)
+## Schritt 7 — Ownership/Permissions setzen (im LXC)
 > Häufig schreiben Immich-Container mit UID/GID 1000:1000. Falls bei dir anders, anpassen.
 
 Optional prüfen:
@@ -152,47 +174,47 @@ Dann setzen (Beispiel 1000:1000):
 chown -R 1000:1000 /home/immich/immich-library
 ```
 ---
-## Schritt 7 — DB Restore klassisch via psql (im LXC)
-### 7.1 Immich stoppen, nur Postgres starten
+## Schritt 8 — DB Restore klassisch via psql (im LXC)
+### 8.1 Immich stoppen, nur Postgres starten
 Im Immich-Stack-Verzeichnis:
 
 ```bash
 docker compose down
 docker compose up -d immich_postgres
 ```
-### 7.2 Dump auswählen
+### 8.2 Dump auswählen
 ```bash
 ls -lh /home/immich/immich-library/backups/*.sql.gz | head
 ```
 > Falls mehrere Dumps vorhanden sind: nimm den neuesten (oder den gewünschten).
 
-### 7.3 Datenbank neu anlegen + Restore (Streaming, ohne Temp-Datei)
+### 8.3 Datenbank neu anlegen + Restore (Streaming, ohne Temp-Datei)
 ```bash
 docker exec immich_postgres psql -U postgres -c "DROP DATABASE IF EXISTS immich;"
 docker exec immich_postgres psql -U postgres -c "CREATE DATABASE immich;"
 
-gunzip -c /home/immich/immich-library/backups/*.sql.gz | \
+gunzip -c /home/immich/immich-library/backups/*.sql.gz | 
   docker exec -i immich_postgres psql -U postgres -d immich
 ```
 ---
-## Schritt 8 — Immich starten + Validierung
-### 8.1 Immich komplett starten
+## Schritt 9 — Immich starten + Validierung
+### 9.1 Immich komplett starten
 ```bash
 docker compose up -d
 ```
-### 8.2 Logs prüfen
+### 9.2 Logs prüfen
 ```bash
 docker compose logs -f --tail=200 immich_server
 docker compose logs -f --tail=200 immich_microservices
 ```
 
-### 8.3 UI prüfen
+### 9.3 UI prüfen
 - [ ] Login klappt
 - [ ] Assets/Alben vorhanden
 - [ ] Admin → Jobs: ggf. **Scan All Libraries** starten, falls Pfade/Index noch nicht sauber sind
 ---
 
-## Schritt 9 — Cutover / Alt-System abschalten
+## Schritt 10 — Cutover / Alt-System abschalten
 - [ ] Alte Instanz stoppen, bevor neue produktiv genutzt wird
 - [ ] DNS / Reverse Proxy auf neue IP/Host umstellen
 ---
