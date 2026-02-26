@@ -69,7 +69,8 @@ mp0: /mnt/usb-backup,mp=/mnt/usb-backup,shared=1
 ```
 ### 2.2 LXC neu starten + prüfen
 ```bash
-pct restart ${CT_ID}
+pct stop ${CT_ID}
+pct start ${CT_ID}
 pct enter ${CT_ID}
 df -h | grep usb-backup
 ls -la /mnt/usb-backup | head -50
