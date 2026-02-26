@@ -30,7 +30,9 @@ blkid /dev/sdb2
 ### 1.2 Mountpoint erstellen + Test-Mount
 ```bash
 mkdir -p /mnt/usb-backup
+
 mount /dev/sdb2 /mnt/usb-backup
+
 df -h /mnt/usb-backup
 ls -la /mnt/usb-backup | head -50
 ```
