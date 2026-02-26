@@ -227,7 +227,7 @@ docker compose logs -f --tail=200 immich_microservices
 ### 9.3 UI prüfen
 - [ ] Login klappt
 - [ ] Assets/Alben vorhanden
-- [ ] Admin → Jobs: ggf. **Scan All Libraries** starten, falls Pfade/Index noch nicht sauber sind
+- [ ] Admin → Verwaltung → Auftrags-Warteschlang → Miniaturansichter Generieren: falls Pfade/Index noch nicht sauber sind. (Kann schon etwas dauern)
 ---
 
 ## Schritt 10 — Cutover / Alt-System abschalten
