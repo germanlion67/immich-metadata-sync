@@ -189,3 +189,19 @@ docker compose logs -f --tail=200 immich_microservices
 - [ ] Alte Instanz stoppen, bevor neue produktiv genutzt wird
 - [ ] DNS / Reverse Proxy auf neue IP/Host umstellen
 ---
+
+
+## Troubleshooting Quick Checks
+### A) Pfade/Mounts
+```bash
+ls -la /home/immich/immich-library
+df -h
+```
+### B) DB erreichbar
+```bash
+docker exec -it immich_postgres psql -U postgres -c "\l"
+```
+### C) Rechte
+```bash
+ls -ld /home/immich/immich-library /home/immich/immich-library/library
+```
