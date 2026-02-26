@@ -117,7 +117,10 @@ apt install -y rsync
 ### 5.2 In `latest` wechseln (Symlink prüfen)
 ```bash
 cd /mnt/usb-backup/latest
-pwd
+
+# Wenn Symlink nicht funktioniert kann auch direkt ins neuste Backupverzeichnis gewechselt werden
+cd /mnt/usb-backup/........
+
 ls -la
 ```
 
