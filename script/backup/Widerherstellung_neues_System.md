@@ -195,14 +195,23 @@ ls -lh /home/immich/immich-library/backups/*.sql.gz | head
 ```
 > Falls mehrere Dumps vorhanden sind: nimm den neuesten (oder den gewünschten).
 
-### 8.3 Datenbank neu anlegen + Restore (Streaming, ohne Temp-Datei)
+### 8.3 Datenbank prüfen und neu anlegen + Restore (Streaming, ohne Temp-Datei)
 ```bash
-docker exec immich_postgres psql -U postgres -c "DROP DATABASE IF EXISTS immich;"
-docker exec immich_postgres psql -U postgres -c "CREATE DATABASE immich;"
+# sicherstellen, dass Postgres läuft
 
-gunzip -c /home/immich/immich-library/backups/*.sql.gz | 
-  docker exec -i immich_postgres psql -U postgres -d immich
+# Rollen/DBs kurz prüfen
+docker exec -it immich_postgres psql -U immich -d postgres -c "\du"
+docker exec -it immich_postgres psql -U immich -d postgres -c "\l"
+
+# DB neu anlegen
+docker exec immich_postgres psql -U immich -d postgres -c "DROP DATABASE IF EXISTS immich;"
+docker exec immich_postgres psql -U immich -d postgres -c "CREATE DATABASE immich;"
+
+# Restore (wenn `latest` nicht funktioniert muss der Dateiname angepasst werden)
+gunzip -c /home/immich/immich-library/backups/latest-db-backup.sql.gz | \
+  docker exec -i immich_postgres psql -U immich -d immich
 ```
+
 ---
 ## Schritt 9 — Immich starten + Validierung
 ### 9.1 Immich komplett starten
