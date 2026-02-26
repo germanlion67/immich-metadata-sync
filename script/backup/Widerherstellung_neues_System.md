@@ -118,7 +118,10 @@ apt install -y rsync
 ```bash
 cd /mnt/usb-backup/latest
 
-# Wenn Symlink nicht funktioniert kann auch direkt ins neuste Backupverzeichnis gewechselt werden
+# Wenn Symlink nicht funktioniert kann er Erstellt werden anhand Dateinamen und sortierung 
+ln -sfn "$(ls -dt 202* | head -n 1)" latest
+
+# oder durch direktes wechseln ins neuste Backupverzeichnis 
 cd /mnt/usb-backup/........
 
 ls -la
@@ -130,29 +133,30 @@ ls -la
 ## Schritt 6 — Daten kopieren (im LXC)
 > Empfehlung: Immich am Ziel während des Kopierens gestoppt lassen.
 
+> Ohne `latest`, wenn direkt ins neuste Backupverzeichniss gewechselt wurde, muss `/mnt/usb-backup/latest/` immer durch `./`ersetzt werden 
 ### 6.1 Library kopieren
 ```bash
-rsync -aH --info=progress2 ./library/ /home/immich/immich-library/library/
+rsync -aH --info=progress2 /mnt/usb-backup/latest/library/ /home/immich/immich-library/library/
 ```
 
-### 6.2 Upload kopieren
+### 6.2 Upload kopieren (optional)
 ```bash
-rsync -aH --info=progress2 ./upload/ /home/immich/immich-library/upload/
+rsync -aH --info=progress2 /mnt/usb-backup/upload/ /home/immich/immich-library/upload/
 ```
 
 ### 6.3 Thumbs kopieren (optional, spart Recompute)
 ```bash
-rsync -aH --info=progress2 ./thumbs/ /home/immich/immich-library/thumbs/
+rsync -aH --info=progress2 /mnt/usb-backup/thumbs/ /home/immich/immich-library/thumbs/
 ```
 
 ### 6.4 Encoded Video kopieren (optional, spart Transcoding)
 ```bash
-rsync -aH --info=progress2 ./encoded-video/ /home/immich/immich-library/encoded-video/
+rsync -aH --info=progress2 /mnt/usb-backup/encoded-video/ /home/immich/immich-library/encoded-video/
 ```
 
 ### 6.5 Profile kopieren (optional)
 ```bash
-rsync -aH --info=progress2 ./profile/ /home/immich/immich-library/profile/
+rsync -aH --info=progress2 /mnt/usb-backup/profile/ /home/immich/immich-library/profile/
 ```
 
 ### 6.6 DB-Backup-Datei(en) bereitstellen
